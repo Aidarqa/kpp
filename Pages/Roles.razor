@@ -1,0 +1,254 @@
+
+@using KppBlazor.Services
+@using KppBlazor.Models
+@inject ApiService Api
+@inject AppState State
+
+<div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div class="page-title" style="margin:0">🔑 Роли и права</div>
+        <button class="btn-primary" @onclick="ToggleCreate">+  Создать роль</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(flashMsg))
+    {
+        <div class="msg-ok">@flashMsg</div>
+    }
+
+    @if (showCreate)
+    {
+        <div class="card" style="margin-bottom:20px;max-width:600px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+                <b style="color:#e0eaf5">Новая роль</b>
+                <button style="background:none;border:none;color:#7899bb;font-size:18px;cursor:pointer"
+                        @onclick="() => showCreate = false">
+                    ✕
+                </button>
+            </div>
+            <div class="form-grid" style="margin-bottom:16px">
+                <div class="form-group">
+                    <label class="lbl">Системное имя</label>
+                    <input class="input" placeholder="security" @bind="cf_name" @bind:event="oninput"
+                           @oninput="e => OnRoleNameInput(e.Value?.ToString())" />
+                    <span style="color:#445566;font-size:11px">Латиница, без пробелов</span>
+                </div>
+                <div class="form-group">
+                    <label class="lbl">Название</label>
+                    <input class="input" placeholder="Служба охраны" @bind="cf_displayName" @bind:event="oninput" />
+                </div>
+            </div>
+            <div style="background:#091829;border-radius:10px;padding:16px;margin-bottom:16px">
+                <div style="color:#7899bb;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:12px">Права доступа</div>
+                @foreach (var (key, label) in Perms)
+                {
+                    var k = key;
+                    <div class="check-wrap">
+                        <input type="checkbox" checked="@GetPerm(k)" @onchange="e => SetPerm(k, (bool)(e.Value ?? false))" />
+                        <span style="color:#c0d8f0;font-size:13px">@label</span>
+                    </div>
+                }
+            </div>
+            @if (!string.IsNullOrEmpty(createErr))
+            {
+                <div style="color:#ef5350;font-size:13px;margin-bottom:10px">@createErr</div>
+            }
+            <button class="btn-primary" @onclick="CreateRole">Создать роль</button>
+        </div>
+    }
+
+    <div class="table-wrap">
+        @if (loading)
+        {
+            <div class="loading"><span class="spin">⏳</span> Загрузка...</div>
+        }
+        else if (!string.IsNullOrEmpty(loadErr))
+        {
+            <div class="err-banner">⚠️ @loadErr</div>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        @foreach (var h in new[] { "Название", "Системное имя", "Создавать заявки", "История", "Вход/Выход", "Действия" })
+                        {
+                            <th>@h</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in roles)
+                    {
+                        <tr>
+                            <td>
+                                @if (editingId == r.Id)
+                                {
+                                    <input class="input" style="font-size:13px" @bind="editDisplayName" @bind:event="oninput" />
+                                }
+                                else
+                                {
+                                    <b style="color:#e0eaf5">@r.DisplayName</b>
+                                    @if (r.IsSystem)
+                                    {
+                                        <span style="display:inline-block;background:#1a2a40;color:#7899bb;font-size:9px;border-radius:4px;padding:1px 5px;margin-left:6px">системная</span>
+                                    }
+                                }
+                            </td>
+                            <td><code style="color:#7ecfff;font-size:12px">@r.Name</code></td>
+                            @foreach (var (key, _) in Perms)
+                            {
+                                var k = key;
+                                <td style="text-align:center">
+                                    @if (editingId == r.Id && !r.IsSystem)
+                                    {
+                                        <input type="checkbox" checked="@GetEditPerm(k)" @onchange="e => SetEditPerm(k, (bool)(e.Value ?? false))" />
+                                    }
+                                    else
+                                    {
+                                        <span style="font-size:16px">@(GetRolePerm(r, k) ? "✅" : "—")</span>
+                                    }
+                                </td>
+                            }
+                            <td>
+                                @if (r.IsSystem)
+                                {
+                                    <span style="color:#445566;font-size:12px">нельзя изменить</span>
+                                }
+                                else if (editingId == r.Id)
+                                {
+                                    <div class="act-row">
+                                        <button class="btn-sm btn-sm-green" style="font-weight:700" @onclick="() => SaveEdit(r.Id)">✓ Сохранить</button>
+                                        <button style="background:#333;border:none;border-radius:6px;padding:5px 8px;color:#aaa;cursor:pointer;font-size:11px"
+                                                @onclick="CancelEdit">
+                                            Отмена
+                                        </button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="act-row">
+                                        <button class="btn-sm btn-sm-blue" @onclick="() => StartEdit(r)">✏️ Редактировать</button>
+                                        <button class="btn-sm-del" @onclick="() => DeleteRole(r)">🗑</button>
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    static readonly (string key, string label)[] Perms =
+    {
+        ("canCreateRequest","Создавать заявки"),
+        ("canViewHistory","Просматривать историю"),
+        ("canManageEntry","Вход / Выход (КПП)")
+    };
+
+    List<RoleItem> roles = new();
+    bool loading = false, showCreate = false;
+    string loadErr = "", createErr = "", flashMsg = "";
+    int editingId = -1;
+
+    string cf_name = "", cf_displayName = "";
+    Dictionary<string, bool> cf_perms = new()
+    { ["canCreateRequest"] = true, ["canViewHistory"] = false, ["canManageEntry"] = false };
+
+    string editDisplayName = "";
+    Dictionary<string, bool> edit_perms = new();
+
+    // Исправленный метод вместо inline-кавычек
+    void OnRoleNameInput(string? val) =>
+        cf_name = (val ?? string.Empty).ToLower().Replace(' ', '_');
+
+    bool GetPerm(string k) => cf_perms.TryGetValue(k, out var v) && v;
+    void SetPerm(string k, bool v) => cf_perms[k] = v;
+    bool GetEditPerm(string k) => edit_perms.TryGetValue(k, out var v) && v;
+    void SetEditPerm(string k, bool v) => edit_perms[k] = v;
+    bool GetRolePerm(RoleItem r, string k) => k switch
+    {
+        "canCreateRequest" => r.CanCreateRequest,
+        "canViewHistory" => r.CanViewHistory,
+        "canManageEntry" => r.CanManageEntry,
+        _ => false
+    };
+
+    protected override async Task OnInitializedAsync() => await LoadRoles();
+
+    async Task LoadRoles()
+    {
+        loading = true; loadErr = "";
+        try { roles = await Api.GetRolesAsync(); State.RolesCache = roles; }
+        catch (Exception e) { loadErr = e.Message; }
+        finally { loading = false; }
+    }
+
+    void ToggleCreate() => showCreate = !showCreate;
+
+    async Task CreateRole()
+    {
+        createErr = "";
+        if (string.IsNullOrWhiteSpace(cf_name) || string.IsNullOrWhiteSpace(cf_displayName))
+        { createErr = "Заполните поля"; return; }
+        try
+        {
+            await Api.CreateRoleAsync(
+                cf_name, cf_displayName,
+                cf_perms["canCreateRequest"],
+                cf_perms["canViewHistory"],
+                cf_perms["canManageEntry"]);
+
+            showCreate = false;
+            cf_name = cf_displayName = "";
+            cf_perms = new() { ["canCreateRequest"] = true, ["canViewHistory"] = false, ["canManageEntry"] = false };
+            await LoadRoles();
+            Flash("✅ Роль создана");
+        }
+        catch (Exception e) { createErr = e.Message; }
+    }
+
+    void StartEdit(RoleItem r)
+    {
+        editingId = r.Id; editDisplayName = r.DisplayName;
+        edit_perms = new()
+        {
+            ["canCreateRequest"] = r.CanCreateRequest,
+            ["canViewHistory"] = r.CanViewHistory,
+            ["canManageEntry"] = r.CanManageEntry
+        };
+    }
+
+    void CancelEdit() => editingId = -1;
+
+    async Task SaveEdit(int id)
+    {
+        try
+        {
+            await Api.UpdateRoleAsync(
+                id, editDisplayName,
+                edit_perms["canCreateRequest"],
+                edit_perms["canViewHistory"],
+                edit_perms["canManageEntry"]);
+
+            editingId = -1;
+            await LoadRoles();
+            Flash("✅ Роль обновлена");
+        }
+        catch (Exception e) { loadErr = e.Message; }
+    }
+
+    async Task DeleteRole(RoleItem r)
+    {
+        try { await Api.DeleteRoleAsync(r.Id); await LoadRoles(); Flash("✅ Роль удалена"); }
+        catch (Exception e) { loadErr = e.Message; }
+    }
+
+    void Flash(string msg)
+    {
+        flashMsg = msg;
+        _ = Task.Delay(3000).ContinueWith(_ => { flashMsg = ""; InvokeAsync(StateHasChanged); });
+    }
+}

@@ -1,0 +1,119 @@
+@namespace KppBlazor.Layout.MainLayout
+@inherits LayoutComponentBase
+@using KppBlazor.Services
+@inject AppState State
+@implements IDisposable
+
+<div id="sidebar">
+
+    <!-- 🔹 Бренд -->
+    <div class="sb-brand">
+        <div class="sb-logo">
+            <img src="icons/cib.jpg" alt="logo" />
+        </div>
+
+        <div class="sb-title">
+            <div class="sb-name">КПП</div>
+            <div class="sb-sub">Контроль гостей</div>
+        </div>
+    </div>
+
+    <!-- 🔹 Пользователь -->
+    <div class="sb-user">
+        <span class="sb-user-icon">👤</span>
+        <div>
+            <div class="sb-uname">@State.Auth?.DisplayName</div>
+            <div class="sb-urole" style="color:@(isAdmin ? "#ffcc02" : "#7899bb")">
+                @(isAdmin ? "⭐ Администратор" : State.Auth?.RoleName)
+            </div>
+        </div>
+    </div>
+
+    <!-- 🔹 Навигация -->
+    <nav>
+        @if (State.Auth?.CanViewHistory == true)
+        {
+            <button class="nav-btn @(State.CurrentView == "history" ? "active" : "")"
+                    @onclick='() => Navigate("history")'>
+                <span>📋</span> История посещений
+
+                @if (State.Auth?.CanManageEntry == true && State.Stats.PendingCnt > 0)
+                {
+                    <span class="nav-badge">@State.Stats.PendingCnt</span>
+                }
+            </button>
+        }
+
+        @if (State.Auth?.CanCreateRequest == true)
+        {
+            <button class="nav-btn @(State.CurrentView == "register" ? "active" : "")"
+                    @onclick='() => Navigate("register")'>
+                <span>@(isAdmin ? "📝" : "✍️")</span>
+                @(isAdmin ? "Новая заявка" : "Создать заявку")
+            </button>
+        }
+
+        @if (isAdmin)
+        {
+            <button class="nav-btn @(State.CurrentView == "users" ? "active" : "")"
+                    @onclick='() => Navigate("users")'>
+                <span>👥</span> Пользователи
+            </button>
+
+            <button class="nav-btn @(State.CurrentView == "roles" ? "active" : "")"
+                    @onclick='() => Navigate("roles")'>
+                <span>🔑</span> Роли и права
+            </button>
+        }
+    </nav>
+
+    <!-- 🔹 Статистика -->
+    @if (State.Auth?.CanViewHistory == true)
+    {
+        <div class="sb-stats">
+            <div class="stat-card">
+                <div class="stat-num" style="color:#7ecfff">@State.Stats.InsideCnt</div>
+                <div class="stat-lbl">Внутри</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-num" style="color:#81c784">@State.Stats.TodayCnt</div>
+                <div class="stat-lbl">Сегодня</div>
+            </div>
+
+            @if (State.Stats.PendingCnt > 0)
+            {
+                <div class="stat-card">
+                    <div class="stat-num" style="color:#ffcc02">@State.Stats.PendingCnt</div>
+                    <div class="stat-lbl">Ожидается</div>
+                </div>
+            }
+
+            <div class="stat-card" style="grid-column:@(State.Stats.PendingCnt > 0 ? "auto" : "span 2")">
+                <div class="stat-num" style="color:#a0a0b0">@State.Stats.Total</div>
+                <div class="stat-lbl">Всего</div>
+            </div>
+        </div>
+    }
+
+    <!-- 🔹 Выход -->
+    <button class="btn-logout" @onclick="Logout">⬅ Выйти</button>
+</div>
+
+@code {
+    bool isAdmin => State.Auth?.RoleName == "admin";
+
+    protected override void OnInitialized()
+    {
+        State.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        State.OnChange -= StateHasChanged;
+    }
+
+    void Navigate(string view) => State.Navigate(view);
+
+    void Logout() => State.Logout();
+}

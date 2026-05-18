@@ -1,0 +1,71 @@
+
+@using KppBlazor.Services
+@using KppBlazor.Models
+@using Microsoft.AspNetCore.Components.Web
+@inject ApiService Api
+@inject AppState State
+
+<div class="login-wrap">
+    <div class="login-box">
+        <div class="login-icon"></div>
+        <h1 class="login-title">КПП — Контроль гостей</h1>
+        <p class="login-sub">Система учёта посетителей</p>
+
+        <input class="field" placeholder="Логин" @bind="username" @bind:event="oninput" />
+        <input class="field" type="password" placeholder="Пароль" @bind="password" @bind:event="oninput"
+               @onkeydown="OnKeyDown" />
+
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="login-err">@errorMsg</div>
+        }
+
+        <button class="btn-primary login-submit" @onclick="DoLogin" disabled="@loading">
+            @(loading ? "⏳ Вход..." : "Войти")
+        </button>
+
+        <p class="login-hint">admin / admin123 &nbsp;|&nbsp; kpp / kpp123 &nbsp;|&nbsp; it_user / it123</p>
+    </div>
+</div>
+
+<style>
+    .login-wrap {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+</style>
+
+@code {
+    string username = "", password = "", errorMsg = "";
+    bool loading = false;
+
+    async Task DoLogin()
+    {
+        errorMsg = "";
+        loading = true;
+        try
+        {
+            var auth = await Api.LoginAsync(username, password);
+            // ✅ Сначала устанавливаем токен, потом делаем запросы
+            Api.SetAuth(auth);
+            State.SetAuth(auth);
+
+            // ✅ Теперь токен уже в заголовках — запрос ролей пройдёт
+            if (auth.RoleName == "admin")
+                State.RolesCache = await Api.GetRolesAsync();
+        }
+        catch (Exception e)
+        {
+            errorMsg = e.Message.Contains("403") ? "Аккаунт заблокирован" : "Неверный логин или пароль";
+        }
+        finally { loading = false; }
+    }
+
+    async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await DoLogin();
+    }
+}

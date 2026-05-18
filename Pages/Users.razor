@@ -1,0 +1,208 @@
+
+@using KppBlazor.Services
+@using KppBlazor.Models
+@inject ApiService Api
+@inject AppState State
+
+<div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div class="page-title" style="margin:0">👥 Пользователи</div>
+        <button class="btn-primary" @onclick="ToggleCreate">+  Создать пользователя</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(flashMsg))
+    {
+        <div class="msg-ok">@flashMsg</div>
+    }
+
+    @if (showCreate)
+    {
+        <div class="card" style="margin-botto m:20px;max-width:600px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+                <b style="color:#e0eaf5">Новый пользователь</b>
+                <button style="background:none;border:none;color:#7899bb;font-size:18px;cursor:pointer"
+                        @onclick="() => showCreate = false">
+                    ✕
+                </button>
+            </div>
+            <div class="form-grid" style="margin-bottom:16px">
+                <div class="form-group">
+                    <label class="lbl">Логин</label>
+                    <input class="input" placeholder="username" @bind="cf_username" @bind:event="oninput" />
+                </div>
+                <div class="form-group">
+                    <label class="lbl">Пароль</label>
+                    <input class="input" type="password" placeholder="••••••" @bind="cf_password" @bind:event="oninput" />
+                </div>
+                <div class="form-group">
+                    <label class="lbl">Отображаемое имя</label>
+                    <input class="input" placeholder="Иванов И.И." @bind="cf_displayName" @bind:event="oninput" />
+                </div>
+                <div class="form-group">
+                    <label class="lbl">Роль</label>
+                    <select class="input" @bind="cf_roleId">
+                        <option value="0">— выберите —</option>
+                        @foreach (var r in State.RolesCache.Where(r => r.Name != "admin"))
+                        {
+                            <option value="@r.Id">@r.DisplayName</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(createErr))
+            {
+                <div style="color:#ef5350;font-size:13px;margin-bottom:10px">@createErr</div>
+            }
+            <button class="btn-primary" @onclick="CreateUser">Создать</button>
+        </div>
+    }
+
+    <div class="table-wrap">
+        @if (loading)
+        {
+            <div class="loading"><span class="spin">⏳</span> Загрузка...</div>
+        }
+        else if (!string.IsNullOrEmpty(loadErr))
+        {
+            <div class="err-banner">⚠️ @loadErr</div>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        @foreach (var h in new[] { "Пользователь", "Логин", "Роль", "Статус", "Создан", "Действия" })
+                        {
+                            <th>@h</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in users)
+                    {
+                        <tr>
+                            <td><div class="guest-name">@u.DisplayName</div></td>
+                            <td><span style="color:#7899bb">@u.Username</span></td>
+                            <td><span class="role-tag">@u.RoleDisplayName</span></td>
+                            <td>
+                                <span class="@(u.IsBlocked ? "badge-blocked" : "badge-active")">
+                                    @(u.IsBlocked ? "🔒 Заблокирован" : "✅ Активен")
+                                </span>
+                            </td>
+                            <td><span class="cell-sm">@IsoDate(u.CreatedAt)</span></td>
+                            <td>
+                                <div class="act-row">
+                                    @if (resetId == u.Id)
+                                    {
+                                        <div class="pwd-row">
+                                            <input class="pwd-inp" type="password" placeholder="Новый пароль"
+                                                   @bind="newPwd" @bind:event="oninput" />
+                                            <button class="btn-sm btn-sm-green" @onclick="() => SavePwd(u.Id)">✓</button>
+                                            <button style="background:#333;border:none;border-radius:6px;padding:4px 8px;color:#aaa;cursor:pointer;font-size:11px"
+                                                    @onclick="CancelReset">
+                                                ✕
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn-sm btn-sm-blue" @onclick="() => StartReset(u.Id)">🔑 Пароль</button>
+                                       
+                                    }
+                                    @if (u.RoleName != "admin")
+                                    {
+                                        <button class="btn-sm @(u.IsBlocked ? "btn-sm-green" : "btn-sm-red")"
+                                                @onclick="() => ToggleBlock(u)">
+                                            @(u.IsBlocked ? "🔓 Разблок." : "🔒 Заблок.")
+                                        </button>
+                                        <button class="btn-sm-del" @onclick="() => DeleteUser(u)">🗑</button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    List<UserItem> users = new();
+    bool loading = false, showCreate = false;
+    string loadErr = "", createErr = "", flashMsg = "";
+    int resetId = -1; string newPwd = "";
+    string cf_username = "", cf_password = "", cf_displayName = "";
+    int cf_roleId = 0;
+
+    protected override async Task OnInitializedAsync() => await LoadUsers();
+
+    async Task LoadUsers()
+    {
+        loading = true; loadErr = "";
+        try { users = await Api.GetUsersAsync(); }
+        catch (Exception e) { loadErr = e.Message; }
+        finally { loading = false; }
+    }
+
+    void ToggleCreate() => showCreate = !showCreate;
+
+    async Task CreateUser()
+    {
+        createErr = "";
+        if (string.IsNullOrWhiteSpace(cf_username) || string.IsNullOrWhiteSpace(cf_password) ||
+            cf_roleId == 0 || string.IsNullOrWhiteSpace(cf_displayName))
+        { createErr = "Заполните все поля"; return; }
+        try
+        {
+            await Api.CreateUserAsync(cf_username, cf_password, cf_displayName, cf_roleId);
+            showCreate = false;
+            cf_username = cf_password = cf_displayName = "";
+            cf_roleId = 0;
+            await LoadUsers();
+            Flash("✅ Пользователь создан");
+        }
+        catch (Exception e) { createErr = e.Message; }
+    }
+
+    void StartReset(int id) { resetId = id; newPwd = ""; }
+    void CancelReset() { resetId = -1; newPwd = ""; }
+
+    async Task SavePwd(int id)
+    {
+        if (string.IsNullOrWhiteSpace(newPwd)) return;
+        try
+        {
+            await Api.UpdatePasswordAsync(id, newPwd);
+            resetId = -1; newPwd = "";
+            await LoadUsers();
+            Flash("✅ Пароль изменён");
+        }
+        catch (Exception e) { loadErr = e.Message; }
+    }
+
+    async Task ToggleBlock(UserItem u)
+    {
+        try
+        {
+            await Api.UpdateBlockedAsync(u.Id, !u.IsBlocked);
+            await LoadUsers();
+            Flash("✅ Статус изменён");
+        }
+        catch (Exception e) { loadErr = e.Message; }
+    }
+
+    async Task DeleteUser(UserItem u)
+    {
+        try { await Api.DeleteUserAsync(u.Id); await LoadUsers(); Flash("✅ Удалён"); }
+        catch (Exception e) { loadErr = e.Message; }
+    }
+
+    void Flash(string msg)
+    {
+        flashMsg = msg;
+        _ = Task.Delay(3000).ContinueWith(_ => { flashMsg = ""; InvokeAsync(StateHasChanged); });
+    }
+
+    string IsoDate(string? iso) => iso?.Length >= 10 ? iso[..10] : "";
+}

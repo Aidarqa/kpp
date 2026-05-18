@@ -1,0 +1,53 @@
+﻿
+@inherits LayoutComponentBase
+@using KppBlazor.Services
+@inject AppState State
+@implements IDisposable
+
+@if (State.Auth == null)
+{
+    <KppBlazor.Pages.Login />
+}
+else
+{
+    <div style="display:flex;min-height:100vh">
+        <Sidebar />
+        <div id="main">
+            @if (State.CurrentView == "history" && State.Auth.CanViewHistory)
+            {
+                <KppBlazor.Pages.History />
+            }
+            else if (State.CurrentView == "history" && !State.Auth.CanViewHistory)
+            {
+                <div class="no-access">
+                    <div class="no-access-icon">🔒</div>
+                    <div>У вас нет доступа к этому разделу</div>
+                </div>
+            }
+            else if (State.CurrentView == "register" && State.Auth.CanCreateRequest)
+            {
+                <KppBlazor.Pages.Register />
+            }
+            else if (State.CurrentView == "users" && State.Auth.RoleName == "admin")
+            {
+                <KppBlazor.Pages.Users />
+            }
+            else if (State.CurrentView == "roles" && State.Auth.RoleName == "admin")
+            {
+                <KppBlazor.Pages.Roles />
+            }
+        </div>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        State.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        State.OnChange -= StateHasChanged;
+    }
+}
