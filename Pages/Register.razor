@@ -9,17 +9,19 @@
 
 <div class="page-fill page-fill-center">
 
-    <div class="page-header" style="margin-bottom:16px">
-        <div>
-            <div class="page-title">@(isAdmin ? "Новая заявка" : isKpp ? "Регистрация гостя" : "Создать заявку")</div>
-        </div>
+    <!-- Заголовок -->
+    <div class="page-header" style="margin-bottom:10px">
+        <div class="page-title">@(isAdmin ? "Новая заявка" : isKpp ? "Регистрация гостя" : "Создать заявку")</div>
     </div>
 
-    <div class="@bannerCls" style="margin-bottom:16px">@bannerTxt</div>
+    <!-- Информационная полоска -->
+    <div class="@bannerCls" style="margin-bottom:12px;padding:9px 14px;font-size:12px">@bannerTxt</div>
 
-    <div class="card">
-        <!-- Основные поля -->
-        <div class="form-grid">
+    <!-- Карточка формы -->
+    <div class="card" style="padding:18px">
+
+        <!-- Блок 1: Основная информация -->
+        <div class="form-grid @(!isKpp ? "form-grid-3" : "")" style="margin-bottom:0">
             <div class="form-group">
                 <label class="lbl">Цель визита</label>
                 <input class="input" placeholder="Напр.: Встреча с руководством"
@@ -33,18 +35,19 @@
             @if (!isKpp)
             {
                 <div class="form-group">
-                    <label class="lbl">📅 Планируемая дата</label>
+                    <label class="lbl">📅 Плановая дата</label>
                     <input class="input" type="date" @bind="plannedDate" />
                 </div>
             }
         </div>
 
-        <!-- ТС -->
-        <div class="section-div">🚗 Транспортное средство <span style="color:#7899bb;font-weight:400">(необязательно)</span></div>
-        <div class="form-grid" style="margin-bottom:20px">
+        <!-- Блок 2: Транспорт -->
+        <div class="section-div">🚗 Транспорт <span>(необязательно)</span></div>
+        <div class="form-grid" style="margin-bottom:0">
             <div class="form-group">
                 <label class="lbl">Марка</label>
-                <input class="input" placeholder="Toyota, BMW…" @bind="carBrand" @bind:event="oninput" />
+                <input class="input" placeholder="Toyota, BMW…"
+                       @bind="carBrand" @bind:event="oninput" />
             </div>
             <div class="form-group">
                 <label class="lbl">Гос. номер</label>
@@ -53,117 +56,122 @@
             </div>
         </div>
 
-        <!-- Режим -->
-        <div class="mode-toggle">
+        <!-- Блок 3: Гость -->
+        <div class="section-div" style="margin-bottom:8px">👤 Данные гостя</div>
+
+        <!-- Переключатель: Один / Группа -->
+        <div class="mode-toggle" style="margin-bottom:10px">
             <button class="btn-mode @(!groupMode ? "active" : "")" @onclick="() => SwitchMode(false)">👤 Один гость</button>
-            <button class="btn-mode @(groupMode ? "active" : "")" @onclick="() => SwitchMode(true)">👥 Группа</button>
+            <button class="btn-mode @(groupMode  ? "active" : "")" @onclick="() => SwitchMode(true)">👥 Группа</button>
         </div>
 
         <!-- Одиночный гость -->
         @if (!groupMode)
         {
-            <!-- Скан паспорта -->
-            <div class="scan-zone">
-                <div class="scan-icon">📄</div>
-                <div class="scan-title">Сканировать паспорт</div>
-                <div class="scan-sub">ИИ автоматически распознает данные</div>
-                <label class="btn-scan">
-                    📷 Загрузить скан паспорта
-                    <InputFile OnChange="OnPassportScan" accept="image/*,application/pdf" style="display:none" />
-                </label>
-                @if (!string.IsNullOrEmpty(scanMsg))
-                {
-                    <div class="scan-msg" style="color:@scanMsgColor">@scanMsg</div>
-                }
-            </div>
-
-            <div class="form-grid" style="margin-bottom:16px">
+            <!-- Поля паспорта 2×2 -->
+            <div class="form-grid" style="margin-bottom:10px">
                 <div class="form-group">
-                    <label class="lbl">ФИО <span style="color:#7ecfff;font-size:10px;text-transform:none;font-weight:400">(авто)</span></label>
-                    <input class="input" placeholder="Фамилия Имя Отчество" @bind="fullName" @bind:event="oninput" />
+                    <label class="lbl">ФИО <span class="lbl-auto">авто</span></label>
+                    <input class="input" placeholder="Фамилия Имя Отчество"
+                           @bind="fullName" @bind:event="oninput" />
                 </div>
                 <div class="form-group">
-                    <label class="lbl">Дата рождения <span style="color:#7ecfff;font-size:10px;text-transform:none;font-weight:400">(авто)</span></label>
+                    <label class="lbl">Дата рождения <span class="lbl-auto">авто</span></label>
                     <input class="input" placeholder="ДД.ММ.ГГГГ" maxlength="10" value="@dob"
                            @oninput="e => dob = FormatDob(e.Value?.ToString() ?? string.Empty)" />
                 </div>
                 <div class="form-group">
-                    <label class="lbl">Серия и номер <span style="color:#7ecfff;font-size:10px;text-transform:none;font-weight:400">(авто)</span></label>
-                    <input class="input" placeholder="0000 000000" @bind="passport" @bind:event="oninput" />
+                    <label class="lbl">Серия и номер <span class="lbl-auto">авто</span></label>
+                    <input class="input" placeholder="0000 000000"
+                           @bind="passport" @bind:event="oninput" />
                 </div>
                 <div class="form-group">
-                    <label class="lbl">Гражданство <span style="color:#7ecfff;font-size:10px;text-transform:none;font-weight:400">(авто)</span></label>
-                    <input class="input" placeholder="РФ" @bind="nationality" @bind:event="oninput" />
+                    <label class="lbl">Гражданство <span class="lbl-auto">авто</span></label>
+                    <input class="input" placeholder="РФ"
+                           @bind="nationality" @bind:event="oninput" />
                 </div>
             </div>
 
-            <div class="form-group">
-                <label class="lbl">📑 Пропускной документ</label>
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                    <label style="display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);transition:border-color .15s,background .15s">
-                        📎 Загрузить документ
-                        <InputFile OnChange="OnPermitDoc" accept="image/*,application/pdf" style="display:none" />
-                    </label>
-                    @if (permitDocLoaded)
-                    {
-                        <span style="color:var(--good-text);font-size:12px">✅ Загружен</span>
-                    }
-                </div>
+            <!-- Загрузка документов — компактная строка -->
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+                        padding:10px 14px;background:var(--surface-2);
+                        border:1px solid var(--border);border-radius:10px;margin-bottom:12px">
+                <label class="btn-upload">
+                    📷 Скан паспорта
+                    <InputFile OnChange="OnPassportScan" accept="image/*,application/pdf" style="display:none" />
+                </label>
+                @if (!string.IsNullOrEmpty(scanMsg))
+                {
+                    <span style="font-size:11px;color:@scanMsgColor">@scanMsg</span>
+                }
+                <div style="width:1px;height:20px;background:var(--border);flex-shrink:0"></div>
+                <label class="btn-upload">
+                    📎 Пропускной документ
+                    <InputFile OnChange="OnPermitDoc" accept="image/*,application/pdf" style="display:none" />
+                </label>
+                @if (permitDocLoaded)
+                {
+                    <span style="color:var(--good-text);font-size:11px;font-weight:600">✅ Загружен</span>
+                }
             </div>
         }
 
         <!-- Групповая форма -->
         @if (groupMode)
         {
-            @for (int i = 0; i < members.Count; i++)
-            {
-                var idx = i;
-                var m = members[idx];
-                <div class="member-card">
-                    <div class="member-hdr">
-                        <span class="member-title">Гость #@(idx + 1)</span>
-                        @if (idx > 0)
-                        {
-                            <button class="btn-remove" @onclick="() => RemoveMember(idx)">✕ Удалить</button>
-                        }
+            <div style="max-height:260px;overflow-y:auto;margin-bottom:8px">
+                @for (int i = 0; i < members.Count; i++)
+                {
+                    var idx = i;
+                    var m = members[idx];
+                    <div class="member-card" style="padding:12px;margin-bottom:8px">
+                        <div class="member-hdr" style="margin-bottom:8px">
+                            <span class="member-title">Гость #@(idx + 1)</span>
+                            @if (idx > 0)
+                            {
+                                <button class="btn-remove" @onclick="() => RemoveMember(idx)">✕ Удалить</button>
+                            }
+                        </div>
+                        <div class="form-grid" style="margin-bottom:0;gap:8px">
+                            <div class="form-group">
+                                <label class="lbl">ФИО</label>
+                                <input class="input" placeholder="Фамилия Имя Отчество" value="@m.FullName"
+                                       @oninput="e => m.FullName = e.Value?.ToString() ?? string.Empty" />
+                            </div>
+                            <div class="form-group">
+                                <label class="lbl">Дата рождения</label>
+                                <input class="input" placeholder="ДД.ММ.ГГГГ" maxlength="10" value="@m.Dob"
+                                       @oninput="e => m.Dob = FormatDob(e.Value?.ToString() ?? string.Empty)" />
+                            </div>
+                            <div class="form-group">
+                                <label class="lbl">Серия и номер</label>
+                                <input class="input" placeholder="0000 000000" value="@m.Passport"
+                                       @oninput="e => m.Passport = e.Value?.ToString() ?? string.Empty" />
+                            </div>
+                            <div class="form-group">
+                                <label class="lbl">Гражданство</label>
+                                <input class="input" placeholder="КР" value="@m.Nationality"
+                                       @oninput="e => SetMemberNationality(m, e.Value?.ToString())" />
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-grid" style="margin-bottom:10px">
-                        <div class="form-group">
-                            <label class="lbl">ФИО</label>
-                            <input class="input" placeholder="Фамилия Имя Отчество" value="@m.FullName"
-                                   @oninput="e => m.FullName = e.Value?.ToString() ?? string.Empty" />
-                        </div>
-                        <div class="form-group">
-                            <label class="lbl">Дата рождения</label>
-                            <input class="input" placeholder="ДД.ММ.ГГГГ" maxlength="10" value="@m.Dob"
-                                   @oninput="e => m.Dob = FormatDob(e.Value?.ToString() ?? string.Empty)" />
-                        </div>
-                        <div class="form-group">
-                            <label class="lbl">Серия и номер</label>
-                            <input class="input" placeholder="0000 000000" value="@m.Passport"
-                                   @oninput="e => m.Passport = e.Value?.ToString() ?? string.Empty" />
-                        </div>
-                        <div class="form-group">
-                            <label class="lbl">Гражданство</label>
-                            <input class="input" placeholder="КР" value="@m.Nationality"
-                                   @oninput="e => SetMemberNationality(m, e.Value?.ToString())" />
-                        </div>
-                    </div>
-                </div>
-            }
-            <button class="btn-add-member" @onclick="AddMember">+ Добавить гостя</button>
+                }
+            </div>
+            <button class="btn-add-member" style="margin-bottom:10px" @onclick="AddMember">+ Добавить гостя</button>
         }
 
         @if (!string.IsNullOrEmpty(errMsg))
         {
-            <div class="field-err">@errMsg</div>
+            <div class="field-err" style="margin-bottom:8px">@errMsg</div>
         }
 
-        <button class="btn-primary" style="width:100%;padding:14px;font-size:15px;margin-top:20px"
+        <button class="btn-primary" style="width:100%;padding:12px;font-size:14px;margin-top:4px"
                 @onclick="Submit" disabled="@submitting">
-            @(submitting ? "⏳ Сохранение..." : submitLabel)
+            @if (submitting) { <span class="spin">⏳</span> <span>Сохранение...</span> }
+            else { <span>@submitLabel</span> }
         </button>
     </div>
+
 </div>
 
 <!-- Модалка успеха -->
@@ -236,14 +244,7 @@
     void SwitchMode(bool grp)
     {
         groupMode = grp;
-        // Reset individual fields when switching to group mode
-        if (grp)
-        {
-            fullName = "";
-            dob = "";
-            passport = "";
-            nationality = "";
-        }
+        if (grp) { fullName = ""; dob = ""; passport = ""; nationality = ""; }
         StateHasChanged();
     }
     void AddMember() => members.Add(new MemberForm());
@@ -255,7 +256,7 @@
     void SetMemberNationality(MemberForm m, string? val) =>
         m.Nationality = string.IsNullOrEmpty(val) ? "КР" : val;
 
-    const long MaxFileBytes = 10_000_000; // 10 MB
+    const long MaxFileBytes = 10_000_000;
 
     async Task OnPassportScan(InputFileChangeEventArgs e)
     {
@@ -265,23 +266,20 @@
             if (f.Size > MaxFileBytes)
             {
                 scanMsg = $"❌ Файл слишком большой ({f.Size / 1_048_576} МБ). Максимум 10 МБ.";
-                scanMsgColor = "#ef5350";
+                scanMsgColor = "var(--bad-text)";
                 return;
             }
-
-            scanMsg = "🤖 ИИ распознаёт..."; scanMsgColor = "#7ecfff";
+            scanMsg = "🤖 Загружено..."; scanMsgColor = "var(--accent-text)";
             StateHasChanged();
-
             using var ms = new MemoryStream();
             await f.OpenReadStream(MaxFileBytes).CopyToAsync(ms);
             passportScanBase64 = "data:" + f.ContentType + ";base64," + Convert.ToBase64String(ms.ToArray());
-
-            scanMsg = "⚠️ Заполните вручную"; scanMsgColor = "#ffb74d";
+            scanMsg = "✅ Скан загружен"; scanMsgColor = "var(--good-text)";
         }
         catch (Exception ex)
         {
-            scanMsg = "❌ Не удалось загрузить файл: " + ex.Message;
-            scanMsgColor = "#ef5350";
+            scanMsg = "❌ " + ex.Message;
+            scanMsgColor = "var(--bad-text)";
         }
     }
 
@@ -292,7 +290,7 @@
             var f = e.File;
             if (f.Size > MaxFileBytes)
             {
-                errMsg = $"Пропускной документ слишком большой ({f.Size / 1_048_576} МБ). Максимум 10 МБ.";
+                errMsg = $"Документ слишком большой ({f.Size / 1_048_576} МБ). Максимум 10 МБ.";
                 return;
             }
             using var ms = new MemoryStream();
@@ -303,7 +301,7 @@
         }
         catch (Exception ex)
         {
-            errMsg = "Не удалось загрузить документ: " + ex.Message;
+            errMsg = "Не удалось загрузить: " + ex.Message;
             permitDocLoaded = false;
         }
     }
@@ -324,11 +322,11 @@
     {
         errMsg = "";
         if (string.IsNullOrWhiteSpace(purpose)) { errMsg = "Укажите цель визита"; return; }
-        if (string.IsNullOrWhiteSpace(host)) { errMsg = "Укажите принимающее лицо"; return; }
+        if (string.IsNullOrWhiteSpace(host))    { errMsg = "Укажите принимающее лицо"; return; }
         if (groupMode && members.Any(m => string.IsNullOrWhiteSpace(m.FullName)))
-        { errMsg = "Введите ФИО для всех гостей"; return; }
+            { errMsg = "Введите ФИО для всех гостей"; return; }
         if (!groupMode && string.IsNullOrWhiteSpace(fullName))
-        { errMsg = "Введите ФИО"; return; }
+            { errMsg = "Введите ФИО"; return; }
 
         submitting = true;
         var groupId = groupMode ? "G" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : null;
@@ -341,16 +339,16 @@
                 {
                     await Api.CreateGuestAsync(new GuestCreateRequest
                     {
-                        FullName = m.FullName,
-                        Dob = m.Dob.NullIfEmpty(),
-                        Passport = m.Passport.NullIfEmpty(),
+                        FullName    = m.FullName,
+                        Dob         = m.Dob.NullIfEmpty(),
+                        Passport    = m.Passport.NullIfEmpty(),
                         Nationality = m.Nationality.NullIfEmpty() ?? "КР",
-                        Purpose = purpose,
-                        Host = host,
-                        CarBrand = carBrand.NullIfEmpty(),
-                        CarPlate = carPlate.NullIfEmpty(),
+                        Purpose     = purpose,
+                        Host        = host,
+                        CarBrand    = carBrand.NullIfEmpty(),
+                        CarPlate    = carPlate.NullIfEmpty(),
                         PlannedDate = isKpp ? null : plannedDate.ToString("yyyy-MM-dd"),
-                        GroupId = groupId
+                        GroupId     = groupId
                     }, author, isKpp);
                 }
                 successCount = members.Count;
@@ -359,17 +357,17 @@
             {
                 await Api.CreateGuestAsync(new GuestCreateRequest
                 {
-                    FullName = fullName,
-                    Dob = dob.NullIfEmpty(),
-                    Passport = passport.NullIfEmpty(),
-                    Nationality = nationality.NullIfEmpty() ?? "КР",
-                    Purpose = purpose,
-                    Host = host,
-                    CarBrand = carBrand.NullIfEmpty(),
-                    CarPlate = carPlate.NullIfEmpty(),
+                    FullName           = fullName,
+                    Dob                = dob.NullIfEmpty(),
+                    Passport           = passport.NullIfEmpty(),
+                    Nationality        = nationality.NullIfEmpty() ?? "КР",
+                    Purpose            = purpose,
+                    Host               = host,
+                    CarBrand           = carBrand.NullIfEmpty(),
+                    CarPlate           = carPlate.NullIfEmpty(),
                     PassportScanBase64 = passportScanBase64,
-                    PermitDocBase64 = permitDocBase64,
-                    PlannedDate = isKpp ? null : plannedDate.ToString("yyyy-MM-dd")
+                    PermitDocBase64    = permitDocBase64,
+                    PlannedDate        = isKpp ? null : plannedDate.ToString("yyyy-MM-dd")
                 }, author, isKpp);
                 successCount = 1;
             }

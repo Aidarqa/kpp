@@ -497,8 +497,30 @@ nav { flex: 1; padding: 8px 12px; }
 }
 
 /* Form grid */
-.form-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
-.form-group { display: flex; flex-direction: column; }
+.form-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-group  { display: flex; flex-direction: column; }
+
+/* Compact upload button */
+.btn-upload {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px; padding: 7px 14px;
+    cursor: pointer; font-size: 12px; font-weight: 600;
+    color: var(--text-muted);
+    transition: border-color .15s, background .15s, color .15s;
+    white-space: nowrap;
+}
+.btn-upload:hover { border-color: var(--accent); background: var(--surface-3); color: var(--accent-text); }
+
+/* Auto-fill label badge */
+.lbl-auto {
+    color: var(--accent-text); font-size: 9px; font-weight: 500;
+    background: var(--accent-soft); border-radius: 4px;
+    padding: 1px 5px; text-transform: none; letter-spacing: 0;
+    margin-left: 4px; vertical-align: middle;
+}
 
 /* ─── BANNERS ─── */
 .info-banner {
@@ -514,8 +536,8 @@ nav { flex: 1; padding: 8px 12px; }
 .section-div {
     color: var(--accent-text); font-size: 11px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 1px;
-    padding: 16px 0 12px;
-    border-top: 1px solid var(--border); margin-top: 4px;
+    padding: 10px 0 8px;
+    border-top: 1px solid var(--border); margin-top: 2px;
     display: flex; align-items: center; gap: 8px;
 }
 .section-div::after {

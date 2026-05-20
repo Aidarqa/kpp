@@ -3,6 +3,7 @@
 @using KppBlazor.Models
 @inject ApiService Api
 @inject AppState State
+@inject IJSRuntime JS
 @implements IDisposable
 
 <div class="page-fill">
@@ -300,6 +301,38 @@
                 <span class="modal-lbl">Создал</span>
                 <span class="modal-val">@(detailGuest.CreatedBy ?? "—")</span>
             </div>
+            @if (detailGuest.HasPassportScan || detailGuest.HasPermitDoc)
+            {
+                <div class="modal-row">
+                    <span class="modal-lbl">Документы</span>
+                    <span class="modal-val">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap">
+                            @if (detailGuest.HasPassportScan)
+                            {
+                                @if (detailGuest.PassportScanBase64 != null)
+                                {
+                                    <button class="btn-sm btn-sm-blue"
+                                            @onclick='async () => await JS.InvokeVoidAsync("viewDoc", detailGuest.PassportScanBase64)'>
+                                        👁 Скан паспорта
+                                    </button>
+                                }
+                                else { <span class="doc-yes">📄 Паспорт</span> }
+                            }
+                            @if (detailGuest.HasPermitDoc)
+                            {
+                                @if (detailGuest.PermitDocBase64 != null)
+                                {
+                                    <button class="btn-sm btn-sm-blue"
+                                            @onclick='async () => await JS.InvokeVoidAsync("viewDoc", detailGuest.PermitDocBase64)'>
+                                        👁 Пропускной документ
+                                    </button>
+                                }
+                                else { <span class="doc-yes">📑 Пропуск</span> }
+                            }
+                        </div>
+                    </span>
+                </div>
+            }
             @if (canManage && (detailGuest.Status == "pending" || detailGuest.Status == "inside"))
             {
                 <div style="margin-top:16px;display:flex;gap:10px">
