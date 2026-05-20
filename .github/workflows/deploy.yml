@@ -31,7 +31,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Publish
-        run: dotnet publish -c Release -o release --nologo
+        run: dotnet publish KppBlazor.csproj -c Release -o release --nologo
 
       - name: Fix base href for GitHub Pages
         run: |
