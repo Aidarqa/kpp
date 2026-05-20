@@ -8,6 +8,7 @@
 @inject IJSRuntime JS
 
 <div class="page-fill">
+    <div style="max-width:780px;width:100%;margin:0 auto">
     <div class="page-header">
         <div>
             <div class="page-title">@(isAdmin ? "Новая заявка" : isKpp ? "Регистрация гостя" : "Создать заявку")</div>
@@ -15,9 +16,9 @@
         </div>
     </div>
 
-    <div class="@bannerCls" style="max-width:780px;margin:0 auto 0">@bannerTxt</div>
+    <div class="@bannerCls">@bannerTxt</div>
 
-    <div class="card" style="max-width:780px;margin:0 auto">
+    <div class="card">
         <!-- Основные поля -->
         <div class="form-grid">
             <div class="form-group">
@@ -161,6 +162,7 @@
                 @onclick="Submit" disabled="@submitting">
             @(submitting ? "⏳ Сохранение..." : submitLabel)
         </button>
+    </div>
     </div>
 </div>
 
