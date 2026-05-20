@@ -1,61 +1,100 @@
-
 @using KppBlazor.Services
 @using KppBlazor.Models
 @using Microsoft.AspNetCore.Components.Web
+@using System.Text.Json
 @inject ApiService Api
 @inject AppState State
+@inject IJSRuntime JS
 
 <div class="login-wrap">
     <div class="login-box">
-        <div class="login-icon"></div>
-        <h1 class="login-title">КПП — Контроль гостей</h1>
+
+        <div class="login-logo">🛡️</div>
+        <span class="login-title">КПП — Контроль гостей</span>
         <p class="login-sub">Система учёта посетителей</p>
 
-        <input class="field" placeholder="Логин" @bind="username" @bind:event="oninput" />
-        <input class="field" type="password" placeholder="Пароль" @bind="password" @bind:event="oninput"
-               @onkeydown="OnKeyDown" />
+        <div style="text-align:left;margin-bottom:14px">
+            <label class="lbl">Логин</label>
+            <input class="field" placeholder="Введите логин" @bind="username" @bind:event="oninput"
+                   style="margin-bottom:0" autocomplete="username" />
+        </div>
+        <div style="text-align:left;margin-bottom:20px">
+            <label class="lbl">Пароль</label>
+            <input class="field" type="password" placeholder="Введите пароль"
+                   @bind="password" @bind:event="oninput" @onkeydown="OnKeyDown"
+                   style="margin-bottom:0" autocomplete="current-password" />
+        </div>
 
         @if (!string.IsNullOrEmpty(errorMsg))
         {
-            <div class="login-err">@errorMsg</div>
+            <div class="err-banner" style="margin-bottom:16px;text-align:left">⚠️ @errorMsg</div>
         }
 
         <button class="btn-primary login-submit" @onclick="DoLogin" disabled="@loading">
-            @(loading ? "⏳ Вход..." : "Войти")
+            @if (loading) { <span class="spin" style="font-size:14px">⏳</span> <span>Вход...</span> }
+            else          { <span>Войти</span> <span style="opacity:.7">→</span> }
         </button>
 
-        <p class="login-hint">admin / admin123 &nbsp;|&nbsp; kpp / kpp123 &nbsp;|&nbsp; it_user / it123</p>
+        <!-- Тестовые аккаунты -->
+        <div style="margin-top:22px;border-top:1px solid var(--border);padding-top:16px;text-align:left">
+            <div style="color:var(--text-dim);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">
+                Тестовые аккаунты
+            </div>
+            @foreach (var (login, pwd, role, icon) in Accounts)
+            {
+                var l = login; var p = pwd;
+                <button @onclick="() => { username = l; password = p; }"
+                        style="display:flex;align-items:center;gap:10px;width:100%;background:var(--surface-2);
+                               border:1px solid var(--border);border-radius:10px;padding:9px 12px;
+                               margin-bottom:6px;cursor:pointer;transition:border-color .15s,background .15s;
+                               text-align:left"
+                        class="acct-btn">
+                    <span style="font-size:18px;flex-shrink:0">@icon</span>
+                    <div style="flex:1;min-width:0">
+                        <div style="color:var(--text);font-size:12px;font-weight:600">@role</div>
+                        <div style="color:var(--text-muted);font-size:11px;font-family:monospace">@login / @pwd</div>
+                    </div>
+                    <span style="color:var(--text-dim);font-size:11px">↗</span>
+                </button>
+            }
+        </div>
     </div>
 </div>
 
 <style>
-    .login-wrap {
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 1rem;
-    }
+    .acct-btn:hover { background: var(--surface-3) !important; border-color: var(--accent-glow) !important; }
 </style>
 
 @code {
+    static readonly (string login, string pwd, string role, string icon)[] Accounts =
+    {
+        ("admin",   "admin123", "Администратор", "⭐"),
+        ("kpp",     "kpp123",   "Сотрудник КПП", "🛂"),
+        ("it_user", "it123",    "Пользователь",  "👤")
+    };
+
     string username = "", password = "", errorMsg = "";
     bool loading = false;
 
     async Task DoLogin()
     {
         errorMsg = "";
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+        { errorMsg = "Введите логин и пароль"; return; }
         loading = true;
         try
         {
             var auth = await Api.LoginAsync(username, password);
-            // ✅ Сначала устанавливаем токен, потом делаем запросы
-            Api.SetAuth(auth);
-            State.SetAuth(auth);
-
-            // ✅ Теперь токен уже в заголовках — запрос ролей пройдёт
-            if (auth.RoleName == "admin")
-                State.RolesCache = await Api.GetRolesAsync();
+            if (auth != null)
+            {
+                try { await JS.InvokeVoidAsync("localStorage.setItem", "kpp-auth", JsonSerializer.Serialize(auth)); } catch { }
+                Api.SetAuth(auth);
+                State.SetAuth(auth);
+                if (auth.RoleName == "admin")
+                    State.RolesCache = await Api.GetRolesAsync();
+                State.Navigate(auth.CanViewHistory ? "history" : "register");
+            }
+            else { errorMsg = "Неверный логин или пароль"; }
         }
         catch (Exception e)
         {
@@ -64,8 +103,5 @@
         finally { loading = false; }
     }
 
-    async Task OnKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await DoLogin();
-    }
+    async Task OnKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await DoLogin(); }
 }

@@ -1,42 +1,49 @@
-@namespace KppBlazor.Layout.MainLayout
-@inherits LayoutComponentBase
+@namespace KppBlazor.Shared
 @using KppBlazor.Services
 @inject AppState State
+@inject ThemeService Theme
+@inject IJSRuntime JS
 @implements IDisposable
 
 <div id="sidebar">
 
-    <!-- 🔹 Бренд -->
+    <!-- Бренд -->
     <div class="sb-brand">
-        <div class="sb-logo">
-            <img src="icons/cib.jpg" alt="logo" />
-        </div>
-
-        <div class="sb-title">
-            <div class="sb-name">КПП</div>
-            <div class="sb-sub">Контроль гостей</div>
-        </div>
-    </div>
-
-    <!-- 🔹 Пользователь -->
-    <div class="sb-user">
-        <span class="sb-user-icon">👤</span>
-        <div>
-            <div class="sb-uname">@State.Auth?.DisplayName</div>
-            <div class="sb-urole" style="color:@(isAdmin ? "#ffcc02" : "#7899bb")">
-                @(isAdmin ? "⭐ Администратор" : State.Auth?.RoleName)
+        <div class="sb-brand-inner">
+            <div class="sb-logo">🛡️</div>
+            <div>
+                <div class="sb-name">КПП</div>
+                <div class="sb-sub">Контроль гостей</div>
             </div>
         </div>
     </div>
 
-    <!-- 🔹 Навигация -->
+    <!-- Пользователь -->
+    <div style="padding:12px 12px 4px">
+        <div class="sb-user">
+            <div class="sb-avatar">👤</div>
+            <div style="min-width:0">
+                <div class="sb-uname" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                    @State.Auth?.DisplayName
+                </div>
+                <div class="sb-urole">
+                    @if (isAdmin) { <span>⭐ Администратор</span> }
+                    else { <span>@State.Auth?.RoleName</span> }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Навигация -->
     <nav>
+        <div class="nav-section-label">Меню</div>
+
         @if (State.Auth?.CanViewHistory == true)
         {
             <button class="nav-btn @(State.CurrentView == "history" ? "active" : "")"
-                    @onclick='() => Navigate("history")'>
-                <span>📋</span> История посещений
-
+                    @onclick='async () => await Navigate("history")'>
+                <span class="nav-icon">📋</span>
+                <span style="flex:1">История</span>
                 @if (State.Auth?.CanManageEntry == true && State.Stats.PendingCnt > 0)
                 {
                     <span class="nav-badge">@State.Stats.PendingCnt</span>
@@ -47,73 +54,97 @@
         @if (State.Auth?.CanCreateRequest == true)
         {
             <button class="nav-btn @(State.CurrentView == "register" ? "active" : "")"
-                    @onclick='() => Navigate("register")'>
-                <span>@(isAdmin ? "📝" : "✍️")</span>
-                @(isAdmin ? "Новая заявка" : "Создать заявку")
+                    @onclick='async () => await Navigate("register")'>
+                <span class="nav-icon">@(isAdmin ? "📝" : "✍️")</span>
+                <span>@(isAdmin ? "Новая заявка" : "Создать заявку")</span>
             </button>
         }
 
         @if (isAdmin)
         {
+            <div class="nav-section-label" style="margin-top:4px">Администрирование</div>
             <button class="nav-btn @(State.CurrentView == "users" ? "active" : "")"
-                    @onclick='() => Navigate("users")'>
-                <span>👥</span> Пользователи
+                    @onclick='async () => await Navigate("users")'>
+                <span class="nav-icon">👥</span>
+                <span>Пользователи</span>
             </button>
-
             <button class="nav-btn @(State.CurrentView == "roles" ? "active" : "")"
-                    @onclick='() => Navigate("roles")'>
-                <span>🔑</span> Роли и права
+                    @onclick='async () => await Navigate("roles")'>
+                <span class="nav-icon">🔑</span>
+                <span>Роли и права</span>
             </button>
         }
     </nav>
 
-    <!-- 🔹 Статистика -->
+    <!-- Статистика -->
     @if (State.Auth?.CanViewHistory == true)
     {
+        <div style="padding:0 12px 4px">
+            <div class="nav-section-label">Статистика</div>
+        </div>
         <div class="sb-stats">
             <div class="stat-card">
-                <div class="stat-num" style="color:#7ecfff">@State.Stats.InsideCnt</div>
+                <div class="stat-num" style="color:var(--accent-text)">@State.Stats.InsideCnt</div>
                 <div class="stat-lbl">Внутри</div>
             </div>
-
             <div class="stat-card">
-                <div class="stat-num" style="color:#81c784">@State.Stats.TodayCnt</div>
+                <div class="stat-num" style="color:var(--good-text)">@State.Stats.TodayCnt</div>
                 <div class="stat-lbl">Сегодня</div>
             </div>
-
             @if (State.Stats.PendingCnt > 0)
             {
                 <div class="stat-card">
-                    <div class="stat-num" style="color:#ffcc02">@State.Stats.PendingCnt</div>
+                    <div class="stat-num" style="color:var(--warn-text)">@State.Stats.PendingCnt</div>
                     <div class="stat-lbl">Ожидается</div>
                 </div>
             }
-
             <div class="stat-card" style="grid-column:@(State.Stats.PendingCnt > 0 ? "auto" : "span 2")">
-                <div class="stat-num" style="color:#a0a0b0">@State.Stats.Total</div>
+                <div class="stat-num" style="color:var(--text-muted)">@State.Stats.Total</div>
                 <div class="stat-lbl">Всего</div>
             </div>
         </div>
     }
 
-    <!-- 🔹 Выход -->
-    <button class="btn-logout" @onclick="Logout">⬅ Выйти</button>
+    <!-- Тема + Выход -->
+    <div class="sb-footer">
+        <button class="btn-mode-toggle" @onclick="ToggleTheme">
+            <span class="mode-icon">@(Theme.IsDark ? "☀️" : "🌙")</span>
+            <span>@(Theme.IsDark ? "Светлая тема" : "Тёмная тема")</span>
+        </button>
+        <button class="btn-logout" @onclick="async () => await Logout()">
+            <span>←</span> Выйти
+        </button>
+    </div>
 </div>
 
 @code {
+    [Parameter] public EventCallback OnClose { get; set; }
+
     bool isAdmin => State.Auth?.RoleName == "admin";
 
     protected override void OnInitialized()
     {
         State.OnChange += StateHasChanged;
+        Theme.OnChange += StateHasChanged;
     }
 
     public void Dispose()
     {
         State.OnChange -= StateHasChanged;
+        Theme.OnChange -= StateHasChanged;
     }
 
-    void Navigate(string view) => State.Navigate(view);
+    async Task Navigate(string view)
+    {
+        State.Navigate(view);
+        await OnClose.InvokeAsync();
+    }
 
-    void Logout() => State.Logout();
+    async Task Logout()
+    {
+        try { await JS.InvokeVoidAsync("localStorage.removeItem", "kpp-auth"); } catch { }
+        State.Logout();
+    }
+
+    async Task ToggleTheme() => await Theme.ToggleAsync();
 }

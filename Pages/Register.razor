@@ -8,11 +8,14 @@
 @inject IJSRuntime JS
 
 <div>
-    <div class="page-title">
-        @(isAdmin ? "📝 Предварительная заявка" : isKpp ? "🛂 Регистрация гостя" : "✍️ Создать заявку")
+    <div class="page-header">
+        <div>
+            <div class="page-title">@(isAdmin ? "Новая заявка" : isKpp ? "Регистрация гостя" : "Создать заявку")</div>
+            <div style="color:var(--text-muted);font-size:13px;margin-top:2px">@bannerTxt</div>
+        </div>
     </div>
 
-    <div class="@bannerCls">@bannerTxt</div>
+    <div class="@bannerCls" style="max-width:780px">@bannerTxt</div>
 
     <div class="card" style="max-width:780px">
         <!-- Основные поля -->
@@ -45,7 +48,7 @@
             </div>
             <div class="form-group">
                 <label class="lbl">Гос. номер</label>
-                <input class="input" placeholder="01KG777SSS" @bind="carPlate" @bind:event="oninput"
+                <input class="input" placeholder="01KG777SSS" value="@carPlate"
                        @oninput="e => OnCarPlateInput(e.Value?.ToString())" />
             </div>
         </div>
@@ -81,7 +84,7 @@
                 </div>
                 <div class="form-group">
                     <label class="lbl">Дата рождения <span style="color:#7ecfff;font-size:10px;text-transform:none;font-weight:400">(авто)</span></label>
-                    <input class="input" placeholder="ДД.ММ.ГГГГ" maxlength="10" @bind="dob" @bind:event="oninput"
+                    <input class="input" placeholder="ДД.ММ.ГГГГ" maxlength="10" value="@dob"
                            @oninput="e => dob = FormatDob(e.Value?.ToString() ?? string.Empty)" />
                 </div>
                 <div class="form-group">
@@ -96,10 +99,13 @@
 
             <div class="form-group">
                 <label class="lbl">📑 Пропускной документ</label>
-                <InputFile OnChange="OnPermitDoc" accept="image/*,application/pdf" style="color:#7ecfff;font-size:13px" />
+                <label class="btn-scan" style="display:inline-block;margin-bottom:0;width:auto">
+                    📎 Загрузить документ
+                    <InputFile OnChange="OnPermitDoc" accept="image/*,application/pdf" style="display:none" />
+                </label>
                 @if (permitDocLoaded)
                 {
-                    <span style="color:#81c784;font-size:12px">✅ Загружен</span>
+                    <span style="color:var(--good-text);font-size:12px;margin-left:12px">✅ Загружен</span>
                 }
             </div>
         }
@@ -161,7 +167,7 @@
 <!-- Модалка успеха -->
 @if (showSuccess)
 {
-    <div class="modal-bg" @onclick="() => { showSuccess = false; State.Navigate(\" history\"); }">
+    <div class="modal-bg" @onclick='() => showSuccess = false'>
         <div class="success-modal" @onclick:stopPropagation="true">
             <div class="success-icon">✅</div>
             <div class="success-title">@(isKpp ? "Гость зарегистрирован!" : "Заявка создана!")</div>
@@ -170,10 +176,19 @@
                     ? $"{successCount} гостей успешно {(isKpp ? "зарегистрированы" : "добавлены")}"
                     : $"Гость успешно {(isKpp ? "зарегистрирован" : "добавлен в список ожидания")}")
             </div>
-            <button class="btn-primary" style="padding:10px 32px"
-                    @onclick="() => { showSuccess = false; State.Navigate(\" history\"); }">
-                📋 В историю
-            </button>
+            @if (State.Auth?.CanViewHistory == true)
+            {
+                <button class="btn-primary" style="padding:10px 32px" @onclick="CloseSuccess">
+                    📋 В историю
+                </button>
+            }
+            else
+            {
+                <button class="btn-primary" style="padding:10px 32px"
+                        @onclick='() => { showSuccess = false; ResetForm(); }'>
+                    ✍️ Новая заявка
+                </button>
+            }
         </div>
     </div>
 }
@@ -184,7 +199,7 @@
 
     string purpose = "", host = "", carBrand = "", carPlate = "",
            fullName = "", dob = "", passport = "", nationality = "РФ";
-    string plannedDate = DateTime.Today.ToString("yyyy-MM-dd");
+    DateOnly plannedDate = DateOnly.FromDateTime(DateTime.Today);
     string? passportScanBase64, permitDocBase64;
     bool permitDocLoaded = false;
     bool groupMode = false, submitting = false, showSuccess = false;
@@ -198,7 +213,37 @@
                      : "ℹ️ Ваша заявка будет передана на КПП.";
     string submitLabel => isAdmin ? "📝 Создать заявку" : isKpp ? "🛂 Зарегистрировать" : "✍️ Отправить заявку";
 
-    void SwitchMode(bool grp) { groupMode = grp; }
+    void CloseSuccess()
+    {
+        showSuccess = false;
+        State.Navigate(State.Auth?.CanViewHistory == true ? "history" : "register");
+    }
+
+    void ResetForm()
+    {
+        purpose = host = carBrand = carPlate = fullName = dob = passport = "";
+        nationality = "РФ";
+        plannedDate = DateOnly.FromDateTime(DateTime.Today);
+        passportScanBase64 = permitDocBase64 = null;
+        permitDocLoaded = false;
+        groupMode = false;
+        members = new() { new MemberForm() };
+        errMsg = scanMsg = "";
+    }
+
+    void SwitchMode(bool grp)
+    {
+        groupMode = grp;
+        // Reset individual fields when switching to group mode
+        if (grp)
+        {
+            fullName = "";
+            dob = "";
+            passport = "";
+            nationality = "";
+        }
+        StateHasChanged();
+    }
     void AddMember() => members.Add(new MemberForm());
     void RemoveMember(int i) => members.RemoveAt(i);
 
@@ -208,26 +253,57 @@
     void SetMemberNationality(MemberForm m, string? val) =>
         m.Nationality = string.IsNullOrEmpty(val) ? "КР" : val;
 
+    const long MaxFileBytes = 10_000_000; // 10 MB
+
     async Task OnPassportScan(InputFileChangeEventArgs e)
     {
-        scanMsg = "🤖 ИИ распознаёт..."; scanMsgColor = "#7ecfff";
-        var f = e.File;
-        using var ms = new MemoryStream();
-        await f.OpenReadStream(10_000_000).CopyToAsync(ms);
-        var b64 = "data:" + f.ContentType + ";base64," + Convert.ToBase64String(ms.ToArray());
-        passportScanBase64 = b64;
-        scanMsg = "⚠️ Заполните вручную"; scanMsgColor = "#ffb74d";
-        await Task.Delay(5000);
-        scanMsg = "";
+        try
+        {
+            var f = e.File;
+            if (f.Size > MaxFileBytes)
+            {
+                scanMsg = $"❌ Файл слишком большой ({f.Size / 1_048_576} МБ). Максимум 10 МБ.";
+                scanMsgColor = "#ef5350";
+                return;
+            }
+
+            scanMsg = "🤖 ИИ распознаёт..."; scanMsgColor = "#7ecfff";
+            StateHasChanged();
+
+            using var ms = new MemoryStream();
+            await f.OpenReadStream(MaxFileBytes).CopyToAsync(ms);
+            passportScanBase64 = "data:" + f.ContentType + ";base64," + Convert.ToBase64String(ms.ToArray());
+
+            scanMsg = "⚠️ Заполните вручную"; scanMsgColor = "#ffb74d";
+        }
+        catch (Exception ex)
+        {
+            scanMsg = "❌ Не удалось загрузить файл: " + ex.Message;
+            scanMsgColor = "#ef5350";
+        }
     }
 
     async Task OnPermitDoc(InputFileChangeEventArgs e)
     {
-        var f = e.File;
-        using var ms = new MemoryStream();
-        await f.OpenReadStream(10_000_000).CopyToAsync(ms);
-        permitDocBase64 = "data:" + f.ContentType + ";base64," + Convert.ToBase64String(ms.ToArray());
-        permitDocLoaded = true;
+        try
+        {
+            var f = e.File;
+            if (f.Size > MaxFileBytes)
+            {
+                errMsg = $"Пропускной документ слишком большой ({f.Size / 1_048_576} МБ). Максимум 10 МБ.";
+                return;
+            }
+            using var ms = new MemoryStream();
+            await f.OpenReadStream(MaxFileBytes).CopyToAsync(ms);
+            permitDocBase64 = "data:" + f.ContentType + ";base64," + Convert.ToBase64String(ms.ToArray());
+            permitDocLoaded = true;
+            errMsg = "";
+        }
+        catch (Exception ex)
+        {
+            errMsg = "Не удалось загрузить документ: " + ex.Message;
+            permitDocLoaded = false;
+        }
     }
 
     string FormatDob(string raw)
@@ -256,6 +332,7 @@
         var groupId = groupMode ? "G" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : null;
         try
         {
+            var author = State.Auth?.Username ?? "system";
             if (groupMode)
             {
                 foreach (var m in members)
@@ -270,9 +347,9 @@
                         Host = host,
                         CarBrand = carBrand.NullIfEmpty(),
                         CarPlate = carPlate.NullIfEmpty(),
-                        PlannedDate = isKpp ? null : plannedDate,
+                        PlannedDate = isKpp ? null : plannedDate.ToString("yyyy-MM-dd"),
                         GroupId = groupId
-                    });
+                    }, author, isKpp);
                 }
                 successCount = members.Count;
             }
@@ -290,8 +367,8 @@
                     CarPlate = carPlate.NullIfEmpty(),
                     PassportScanBase64 = passportScanBase64,
                     PermitDocBase64 = permitDocBase64,
-                    PlannedDate = isKpp ? null : plannedDate
-                });
+                    PlannedDate = isKpp ? null : plannedDate.ToString("yyyy-MM-dd")
+                }, author, isKpp);
                 successCount = 1;
             }
             showSuccess = true;

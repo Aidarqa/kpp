@@ -52,26 +52,29 @@ public class DataStore
 
     private void SeedUsers()
     {
-        _users.AddRange(new[]
+    _users.AddRange(new[]
+    {
+        new UserItem
         {
-            new UserItem
-            {
-                Id = _userSeq++, Username = "admin", DisplayName = "Администратор",
-                RoleName = "admin", RoleDisplayName = "Администратор", RoleId = 1,
-                PasswordHash = Hash("admin123"), CreatedAt = Iso(DateTime.UtcNow)
-            },
-            new UserItem
-            {
-                Id = _userSeq++, Username = "kpp", DisplayName = "Исанов КПП",
-                RoleName = "kpp", RoleDisplayName = "Сотрудник КПП", RoleId = 2,
-                PasswordHash = Hash("kpp123"), CreatedAt = Iso(DateTime.UtcNow)
-            },
-            new UserItem
-            {
-                Id = _userSeq++, Username = "it_user", DisplayName = "Исанов И.И.",
-                RoleName = "user", RoleDisplayName = "Пользователь", RoleId = 3,
-                PasswordHash = Hash("it123"), CreatedAt = Iso(DateTime.UtcNow)
-            }
+            Id = _userSeq++, Username = "admin", DisplayName = "Администратор",
+            RoleName = "admin", RoleDisplayName = "Администратор", RoleId = 1,
+            PasswordHash = Hash("admin123"), CreatedAt = Iso(DateTime.UtcNow),
+            CanCreateRequest = true, CanViewHistory = true, CanManageEntry = true
+        },
+        new UserItem
+        {
+            Id = _userSeq++, Username = "kpp", DisplayName = "Исанов КПП",
+            RoleName = "kpp", RoleDisplayName = "Сотрудник КПП", RoleId = 2,
+            PasswordHash = Hash("kpp123"), CreatedAt = Iso(DateTime.UtcNow),
+            CanCreateRequest = true, CanViewHistory = true, CanManageEntry = true
+        },
+        new UserItem
+        {
+            Id = _userSeq++, Username = "it_user", DisplayName = "Исанов И.И.",
+            RoleName = "user", RoleDisplayName = "Пользователь", RoleId = 3,
+            PasswordHash = Hash("it123"), CreatedAt = Iso(DateTime.UtcNow),
+            CanCreateRequest = true, CanViewHistory = false, CanManageEntry = false
+        }
         });
     }
 
@@ -179,7 +182,10 @@ public class DataStore
             RoleName = role?.Name ?? "",
             RoleDisplayName = role?.DisplayName ?? "",
             PasswordHash = Hash(password),
-            CreatedAt = Iso(DateTime.UtcNow)
+            CreatedAt = Iso(DateTime.UtcNow),
+            CanCreateRequest = role?.CanCreateRequest ?? false,
+            CanViewHistory   = role?.CanViewHistory   ?? false,
+            CanManageEntry   = role?.CanManageEntry    ?? false
         });
         return true;
     }

@@ -1,152 +1,191 @@
 using KppBlazor.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace KppBlazor.Services;
 
 public class ApiService
 {
-    private readonly DataStore _db;
-    private AuthInfo? _auth;
+    private readonly DataStore _store;
 
-    public ApiService(DataStore db) => _db = db;
+    public AuthInfo? CurrentAuth { get; private set; }
 
-    public AuthInfo? Auth => _auth;
-    public void SetAuth(AuthInfo? auth) => _auth = auth;
-
-    // ── Auth ─────────────────────────────────────────────
-    public Task<AuthInfo> LoginAsync(string username, string password)
+    public ApiService(DataStore store)
     {
-        var user = _db.GetByCredentials(username, password)
-            ?? throw new Exception("Неверный логин или пароль");
+        _store = store;
+    }
 
-        if (user.IsBlocked) throw new Exception("403");
+    public void SetAuth(AuthInfo? auth) => CurrentAuth = auth;
 
-        var role = _db.GetRoles().FirstOrDefault(r => r.Id == user.RoleId) ?? new RoleItem();
+    // ── Auth ──────────────────────────────────────────
+    public Task<AuthInfo?> LoginAsync(string username, string password)
+    {
+        var user = _store.GetByCredentials(username, password);
+        if (user is null) return Task.FromResult<AuthInfo?>(null);
 
-        return Task.FromResult(new AuthInfo
+        var auth = new AuthInfo
         {
-            Id = user.Id,
+            Id = user.Id.ToString(),
             Username = user.Username,
             DisplayName = user.DisplayName,
             RoleName = user.RoleName,
-            Token = "local",
-            CanCreateRequest = role.CanCreateRequest,
-            CanViewHistory = role.CanViewHistory,
-            CanManageEntry = role.CanManageEntry
-        });
+            RoleId = user.RoleId.ToString(),
+            CanCreateRequest = user.CanCreateRequest,
+            CanViewHistory = user.CanViewHistory,
+            CanManageEntry = user.CanManageEntry
+        };
+        return Task.FromResult<AuthInfo?>(auth);
     }
 
-    // ── Guests ───────────────────────────────────────────
-    public Task<GuestListResponse> GetGuestsAsync(
-        string search, string status, string dateFrom, string dateTo)
+    // ── Guests ────────────────────────────────────────
+    public Task<GuestListResponse> GetGuestsAsync(string search = "", string status = "all",
+        string dateFrom = "", string dateTo = "")
     {
-        RequireAuth();
-        return Task.FromResult(_db.QueryGuests(search, status, dateFrom, dateTo));
+        return Task.FromResult(_store.QueryGuests(search, status, dateFrom, dateTo));
     }
 
-    public Task GuestEntryAsync(int id)
+    public Task<GuestItem?> GetGuestByIdAsync(int id)
     {
-        RequireAuth();
-        if (!_db.GuestEntry(id)) throw new Exception("Не удалось отметить вход");
-        return Task.CompletedTask;
+        var list = _store.QueryGuests("", "all", "", "");
+        return Task.FromResult(list.Items.FirstOrDefault(g => g.Id == id));
     }
 
-    public Task GuestExitAsync(int id)
+    public Task<GuestItem> CreateGuestAsync(GuestCreateRequest req, string createdBy = "system", bool registerImmediately = false)
     {
-        RequireAuth();
-        if (!_db.GuestExit(id)) throw new Exception("Не удалось отметить выход");
-        return Task.CompletedTask;
+        var guest = _store.AddGuest(req, createdBy, registerImmediately);
+        return Task.FromResult(guest);
     }
 
-    public Task CreateGuestAsync(GuestCreateRequest req)
+    public Task<bool> GuestEntryAsync(int guestId)
+        => Task.FromResult(_store.GuestEntry(guestId));
+
+    public Task<bool> GuestExitAsync(int guestId)
+        => Task.FromResult(_store.GuestExit(guestId));
+
+    public Task<bool> UpdateGuestAsync(GuestItem updated)
+        => Task.FromResult(false);
+
+    // ── Roles ──────────────────────────────────────────
+    // Основной метод, на который завязаны все перегрузки
+    private Task<bool> SaveRoleInternal(RoleItem role)
     {
-        RequireAuth();
-        bool immediate = _auth!.CanManageEntry && _auth.RoleName != "admin";
-        _db.AddGuest(req, _auth.Username, immediate);
-        return Task.CompletedTask;
+        if (role.Id == 0)
+        {
+            var newRole = _store.AddRole(role.Name, role.DisplayName,
+                role.CanCreateRequest, role.CanViewHistory, role.CanManageEntry);
+            role.Id = newRole.Id;
+            return Task.FromResult(true);
+        }
+        else
+        {
+            return Task.FromResult(_store.UpdateRole(role.Id, role.DisplayName,
+                role.CanCreateRequest, role.CanViewHistory, role.CanManageEntry));
+        }
     }
 
-    // ── Roles ─────────────────────────────────────────────
+    public Task<bool> SaveRoleAsync(RoleItem role) => SaveRoleInternal(role);
+
+    // Перегрузки, которые вызываются из Razor страниц
+
+    // CreateRoleAsync (5 аргументов: name, displayName, canCreate, canViewHistory, canManageEntry)
+    public Task<bool> CreateRoleAsync(string name, string displayName,
+        bool canCreate, bool canViewHistory, bool canManageEntry)
+    {
+        var role = new RoleItem
+        {
+            Name = name,
+            DisplayName = displayName,
+            CanCreateRequest = canCreate,
+            CanViewHistory = canViewHistory,
+            CanManageEntry = canManageEntry
+        };
+        return SaveRoleInternal(role);
+    }
+
+    // UpdateRoleAsync (6 аргументов: id, name, displayName, canCreate, canViewHistory, canManageEntry) – вызывается из Roles.razor(230)
+    public Task<bool> UpdateRoleAsync(int id, string name, string displayName,
+        bool canCreate, bool canViewHistory, bool canManageEntry)
+    {
+        var role = new RoleItem
+        {
+            Id = id,
+            Name = name,
+            DisplayName = displayName,
+            CanCreateRequest = canCreate,
+            CanViewHistory = canViewHistory,
+            CanManageEntry = canManageEntry
+        };
+        return SaveRoleInternal(role);
+    }
+
+    // UpdateRoleAsync (5 аргументов без displayName) – вызывается из Roles.razor(230) с 5 параметрами? Оставим для совместимости
+    public Task<bool> UpdateRoleAsync(int id, string name, bool canCreate, bool canViewHistory, bool canManageEntry)
+    {
+        var role = new RoleItem
+        {
+            Id = id,
+            Name = name,
+            DisplayName = name,
+            CanCreateRequest = canCreate,
+            CanViewHistory = canViewHistory,
+            CanManageEntry = canManageEntry
+        };
+        return SaveRoleInternal(role);
+    }
+
+    // UpdateRoleAsync (5 аргументов без canManageEntry) – на всякий случай
+    public Task<bool> UpdateRoleAsync(int id, string name, string displayName,
+        bool canCreate, bool canViewHistory)
+    {
+        var role = new RoleItem
+        {
+            Id = id,
+            Name = name,
+            DisplayName = displayName,
+            CanCreateRequest = canCreate,
+            CanViewHistory = canViewHistory,
+            CanManageEntry = false
+        };
+        return SaveRoleInternal(role);
+    }
+
     public Task<List<RoleItem>> GetRolesAsync()
-    {
-        RequireAuth();
-        return Task.FromResult(_db.GetRoles());
-    }
+        => Task.FromResult(_store.GetRoles());
 
-    public Task CreateRoleAsync(
-        string name, string displayName,
-        bool canCreateRequest, bool canViewHistory, bool canManageEntry)
-    {
-        RequireAdmin();
-        _db.AddRole(name, displayName, canCreateRequest, canViewHistory, canManageEntry);
-        return Task.CompletedTask;
-    }
+    public Task<bool> DeleteRoleAsync(int roleId)
+        => Task.FromResult(_store.DeleteRole(roleId));
 
-    public Task UpdateRoleAsync(
-        int id, string displayName,
-        bool canCreateRequest, bool canViewHistory, bool canManageEntry)
-    {
-        RequireAdmin();
-        if (!_db.UpdateRole(id, displayName, canCreateRequest, canViewHistory, canManageEntry))
-            throw new Exception("Роль не найдена или является системной");
-        return Task.CompletedTask;
-    }
-
-    public Task DeleteRoleAsync(int id)
-    {
-        RequireAdmin();
-        if (!_db.DeleteRole(id)) throw new Exception("Роль не найдена или является системной");
-        return Task.CompletedTask;
-    }
-
-    // ── Users ─────────────────────────────────────────────
+    // ── Users ──────────────────────────────────────────
     public Task<List<UserItem>> GetUsersAsync()
+        => Task.FromResult(_store.GetUsers());
+
+    public Task<bool> CreateUserAsync(string username, string password,
+        string displayName, int roleId)
     {
-        RequireAdmin();
-        return Task.FromResult(_db.GetUsers());
+        return Task.FromResult(_store.AddUser(username, password, displayName, roleId));
     }
 
-    public Task CreateUserAsync(
-        string username, string password, string displayName, int roleId)
+    public Task<bool> CreateUserAsync(UserItem user, string password)
+        => Task.FromResult(_store.AddUser(user.Username, password, user.DisplayName, user.RoleId));
+
+    public Task<bool> UpdateUserAsync(UserItem user)
+        => Task.FromResult(_store.UpdateUser(user.Id, null, user.IsBlocked));
+
+    public Task<bool> UpdatePasswordAsync(int userId, string newPassword)
+        => Task.FromResult(_store.UpdateUser(userId, newPassword, null));
+
+    public Task<bool> UpdateBlockedAsync(int userId, bool isBlocked)
+        => Task.FromResult(_store.UpdateUser(userId, null, isBlocked));
+
+    public Task<bool> ToggleUserBlockAsync(int userId)
     {
-        RequireAdmin();
-        if (!_db.AddUser(username, password, displayName, roleId))
-            throw new Exception("Пользователь с таким именем уже существует");
-        return Task.CompletedTask;
+        var user = _store.GetUsers().FirstOrDefault(u => u.Id == userId);
+        if (user is null) return Task.FromResult(false);
+        return Task.FromResult(_store.UpdateUser(userId, null, !user.IsBlocked));
     }
 
-    public Task UpdatePasswordAsync(int id, string newPassword)
-    {
-        RequireAdmin();
-        if (!_db.UpdateUser(id, newPassword, null))
-            throw new Exception("Пользователь не найден");
-        return Task.CompletedTask;
-    }
-
-    public Task UpdateBlockedAsync(int id, bool isBlocked)
-    {
-        RequireAdmin();
-        if (!_db.UpdateUser(id, null, isBlocked))
-            throw new Exception("Пользователь не найден");
-        return Task.CompletedTask;
-    }
-
-    public Task DeleteUserAsync(int id)
-    {
-        RequireAdmin();
-        if (!_db.DeleteUser(id)) throw new Exception("Пользователь не найден");
-        return Task.CompletedTask;
-    }
-
-    // ── Guards ────────────────────────────────────────────
-    private void RequireAuth()
-    {
-        if (_auth is null) throw new Exception("Требуется авторизация");
-    }
-
-    private void RequireAdmin()
-    {
-        RequireAuth();
-        if (_auth!.RoleName != "admin")
-            throw new Exception("Требуются права администратора");
-    }
+    public Task<bool> DeleteUserAsync(int userId)
+        => Task.FromResult(_store.DeleteUser(userId));
 }

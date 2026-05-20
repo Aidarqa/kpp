@@ -5,55 +5,14 @@
 @inject AppState State
 
 <div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="page-title" style="margin:0">🔑 Роли и права</div>
-        <button class="btn-primary" @onclick="ToggleCreate">+  Создать роль</button>
+        <button class="btn-primary" @onclick="ToggleCreate">+ Создать роль</button>
     </div>
 
     @if (!string.IsNullOrEmpty(flashMsg))
     {
         <div class="msg-ok">@flashMsg</div>
-    }
-
-    @if (showCreate)
-    {
-        <div class="card" style="margin-bottom:20px;max-width:600px">
-            <div style="display:flex;justify-content:space-between;margin-bottom:16px">
-                <b style="color:#e0eaf5">Новая роль</b>
-                <button style="background:none;border:none;color:#7899bb;font-size:18px;cursor:pointer"
-                        @onclick="() => showCreate = false">
-                    ✕
-                </button>
-            </div>
-            <div class="form-grid" style="margin-bottom:16px">
-                <div class="form-group">
-                    <label class="lbl">Системное имя</label>
-                    <input class="input" placeholder="security" @bind="cf_name" @bind:event="oninput"
-                           @oninput="e => OnRoleNameInput(e.Value?.ToString())" />
-                    <span style="color:#445566;font-size:11px">Латиница, без пробелов</span>
-                </div>
-                <div class="form-group">
-                    <label class="lbl">Название</label>
-                    <input class="input" placeholder="Служба охраны" @bind="cf_displayName" @bind:event="oninput" />
-                </div>
-            </div>
-            <div style="background:#091829;border-radius:10px;padding:16px;margin-bottom:16px">
-                <div style="color:#7899bb;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:12px">Права доступа</div>
-                @foreach (var (key, label) in Perms)
-                {
-                    var k = key;
-                    <div class="check-wrap">
-                        <input type="checkbox" checked="@GetPerm(k)" @onchange="e => SetPerm(k, (bool)(e.Value ?? false))" />
-                        <span style="color:#c0d8f0;font-size:13px">@label</span>
-                    </div>
-                }
-            </div>
-            @if (!string.IsNullOrEmpty(createErr))
-            {
-                <div style="color:#ef5350;font-size:13px;margin-bottom:10px">@createErr</div>
-            }
-            <button class="btn-primary" @onclick="CreateRole">Создать роль</button>
-        </div>
     }
 
     <div class="table-wrap">
@@ -70,7 +29,7 @@
             <table>
                 <thead>
                     <tr>
-                        @foreach (var h in new[] { "Название", "Системное имя", "Создавать заявки", "История", "Вход/Выход", "Действия" })
+                        @foreach (var h in new[] { "Название", "Системное имя", "Заявки", "История", "Вход/Выход", "Действия" })
                         {
                             <th>@h</th>
                         }
@@ -83,51 +42,49 @@
                             <td>
                                 @if (editingId == r.Id)
                                 {
-                                    <input class="input" style="font-size:13px" @bind="editDisplayName" @bind:event="oninput" />
+                                    <input class="input" style="font-size:13px;min-width:120px" @bind="editDisplayName" @bind:event="oninput" />
                                 }
                                 else
                                 {
-                                    <b style="color:#e0eaf5">@r.DisplayName</b>
+                                    <b style="color:var(--text)">@r.DisplayName</b>
                                     @if (r.IsSystem)
                                     {
-                                        <span style="display:inline-block;background:#1a2a40;color:#7899bb;font-size:9px;border-radius:4px;padding:1px 5px;margin-left:6px">системная</span>
+                                        <span style="display:inline-block;background:var(--surface-3);color:var(--text-muted);font-size:9px;border-radius:4px;padding:1px 5px;margin-left:6px;border:1px solid var(--border)">системная</span>
                                     }
                                 }
                             </td>
-                            <td><code style="color:#7ecfff;font-size:12px">@r.Name</code></td>
+                            <td><code style="color:var(--accent-text);font-size:12px">@r.Name</code></td>
                             @foreach (var (key, _) in Perms)
                             {
                                 var k = key;
                                 <td style="text-align:center">
                                     @if (editingId == r.Id && !r.IsSystem)
                                     {
-                                        <input type="checkbox" checked="@GetEditPerm(k)" @onchange="e => SetEditPerm(k, (bool)(e.Value ?? false))" />
+                                        <input type="checkbox" checked="@GetEditPerm(k)" @onchange="e => SetEditPerm(k, (bool)(e.Value ?? false))" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer" />
                                     }
                                     else
                                     {
-                                        <span style="font-size:16px">@(GetRolePerm(r, k) ? "✅" : "—")</span>
+                                        <span style="font-size:15px">@(GetRolePerm(r, k) ? "✅" : "—")</span>
                                     }
                                 </td>
                             }
                             <td>
                                 @if (r.IsSystem)
                                 {
-                                    <span style="color:#445566;font-size:12px">нельзя изменить</span>
+                                    <span style="color:var(--text-dim);font-size:12px">защищена</span>
                                 }
                                 else if (editingId == r.Id)
                                 {
                                     <div class="act-row">
-                                        <button class="btn-sm btn-sm-green" style="font-weight:700" @onclick="() => SaveEdit(r.Id)">✓ Сохранить</button>
-                                        <button style="background:#333;border:none;border-radius:6px;padding:5px 8px;color:#aaa;cursor:pointer;font-size:11px"
-                                                @onclick="CancelEdit">
-                                            Отмена
-                                        </button>
+                                        <button class="btn-sm btn-sm-green" @onclick="() => SaveEdit(r.Id)">✓ Сохранить</button>
+                                        <button class="btn-sm" style="background:var(--surface-2);color:var(--text-dim);border:1px solid var(--border)"
+                                                @onclick="CancelEdit">Отмена</button>
                                     </div>
                                 }
                                 else
                                 {
                                     <div class="act-row">
-                                        <button class="btn-sm btn-sm-blue" @onclick="() => StartEdit(r)">✏️ Редактировать</button>
+                                        <button class="btn-sm btn-sm-blue" @onclick="() => StartEdit(r)">✏️ Изменить</button>
                                         <button class="btn-sm-del" @onclick="() => DeleteRole(r)">🗑</button>
                                     </div>
                                 }
@@ -140,12 +97,63 @@
     </div>
 </div>
 
+<!-- Модалка создания роли -->
+@if (showCreate)
+{
+    <div class="modal-bg" @onclick="() => showCreate = false">
+        <div class="modal-box" style="max-width:460px" @onclick:stopPropagation="true">
+            <div class="modal-hdr">
+                <span style="font-size:16px;font-weight:800;color:var(--text)">Новая роль</span>
+                <button class="modal-close" @onclick="() => showCreate = false">✕</button>
+            </div>
+
+            <div class="form-grid" style="margin-bottom:16px">
+                <div class="form-group">
+                    <label class="lbl">Системное имя</label>
+                    <input class="input" placeholder="security" value="@cf_name"
+                           @oninput="e => OnRoleNameInput(e.Value?.ToString())" />
+                    <span style="color:var(--text-dim);font-size:11px;margin-top:4px">Латиница, без пробелов</span>
+                </div>
+                <div class="form-group">
+                    <label class="lbl">Название</label>
+                    <input class="input" placeholder="Служба охраны" @bind="cf_displayName" @bind:event="oninput" />
+                </div>
+            </div>
+
+            <div style="background:var(--surface-2);border-radius:10px;padding:16px;margin-bottom:16px;border:1px solid var(--border)">
+                <div style="color:var(--text-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Права доступа</div>
+                @foreach (var (key, label) in Perms)
+                {
+                    var k = key;
+                    <div class="check-wrap">
+                        <input type="checkbox" checked="@GetPerm(k)" @onchange="e => SetPerm(k, (bool)(e.Value ?? false))" />
+                        <span>@label</span>
+                    </div>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(createErr))
+            {
+                <div class="err-banner" style="margin-bottom:14px">@createErr</div>
+            }
+
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+                <button style="background:none;border:1px solid var(--border);border-radius:10px;padding:10px 18px;color:var(--text-muted);cursor:pointer;font-size:13px"
+                        @onclick="() => showCreate = false">
+                    Отмена
+                </button>
+                <button class="btn-primary" @onclick="CreateRole">Создать роль</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     static readonly (string key, string label)[] Perms =
     {
-        ("canCreateRequest","Создавать заявки"),
-        ("canViewHistory","Просматривать историю"),
-        ("canManageEntry","Вход / Выход (КПП)")
+        ("canCreateRequest", "Создавать заявки"),
+        ("canViewHistory",   "Просматривать историю"),
+        ("canManageEntry",   "Вход / Выход (КПП)")
     };
 
     List<RoleItem> roles = new();
@@ -160,7 +168,6 @@
     string editDisplayName = "";
     Dictionary<string, bool> edit_perms = new();
 
-    // Исправленный метод вместо inline-кавычек
     void OnRoleNameInput(string? val) =>
         cf_name = (val ?? string.Empty).ToLower().Replace(' ', '_');
 
@@ -171,9 +178,9 @@
     bool GetRolePerm(RoleItem r, string k) => k switch
     {
         "canCreateRequest" => r.CanCreateRequest,
-        "canViewHistory" => r.CanViewHistory,
-        "canManageEntry" => r.CanManageEntry,
-        _ => false
+        "canViewHistory"   => r.CanViewHistory,
+        "canManageEntry"   => r.CanManageEntry,
+        _                  => false
     };
 
     protected override async Task OnInitializedAsync() => await LoadRoles();
@@ -186,7 +193,13 @@
         finally { loading = false; }
     }
 
-    void ToggleCreate() => showCreate = !showCreate;
+    void ToggleCreate()
+    {
+        cf_name = cf_displayName = "";
+        cf_perms = new() { ["canCreateRequest"] = true, ["canViewHistory"] = false, ["canManageEntry"] = false };
+        createErr = "";
+        showCreate = true;
+    }
 
     async Task CreateRole()
     {
@@ -200,10 +213,7 @@
                 cf_perms["canCreateRequest"],
                 cf_perms["canViewHistory"],
                 cf_perms["canManageEntry"]);
-
             showCreate = false;
-            cf_name = cf_displayName = "";
-            cf_perms = new() { ["canCreateRequest"] = true, ["canViewHistory"] = false, ["canManageEntry"] = false };
             await LoadRoles();
             Flash("✅ Роль создана");
         }
@@ -216,8 +226,8 @@
         edit_perms = new()
         {
             ["canCreateRequest"] = r.CanCreateRequest,
-            ["canViewHistory"] = r.CanViewHistory,
-            ["canManageEntry"] = r.CanManageEntry
+            ["canViewHistory"]   = r.CanViewHistory,
+            ["canManageEntry"]   = r.CanManageEntry
         };
     }
 
@@ -232,7 +242,6 @@
                 edit_perms["canCreateRequest"],
                 edit_perms["canViewHistory"],
                 edit_perms["canManageEntry"]);
-
             editingId = -1;
             await LoadRoles();
             Flash("✅ Роль обновлена");

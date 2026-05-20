@@ -1,15 +1,41 @@
-@using Microsoft.AspNetCore.Components.Routing
-@using Microsoft.AspNetCore.Components.Web
+@using KppBlazor.Layout.MainLayout
+@using KppBlazor.Services
+@using KppBlazor.Models
+@using System.Text.Json
+@inject ThemeService Theme
+@inject AppState State
+@inject ApiService Api
+@inject IJSRuntime JS
 
-<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(KppBlazor.Layout.MainLayout.MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <PageTitle>Не найдено</PageTitle>
-        <LayoutView Layout="@typeof(KppBlazor.Layout.MainLayout.MainLayout)">
-            <p>Страница не найдена.</p>
-        </LayoutView>
-    </NotFound>
-</Router>
+<MainLayout />
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Theme.InitializeAsync();
+            await RestoreAuthAsync();
+        }
+    }
+
+    async Task RestoreAuthAsync()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", "kpp-auth");
+            if (!string.IsNullOrEmpty(json))
+            {
+                var auth = JsonSerializer.Deserialize<AuthInfo>(json);
+                if (auth != null && !string.IsNullOrEmpty(auth.Username))
+                {
+                    Api.SetAuth(auth);
+                    State.SetAuth(auth);
+                    if (auth.RoleName == "admin")
+                        State.RolesCache = await Api.GetRolesAsync();
+                }
+            }
+        }
+        catch { }
+    }
+}

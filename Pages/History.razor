@@ -1,4 +1,4 @@
-
+@page "/history"
 @using KppBlazor.Services
 @using KppBlazor.Models
 @inject ApiService Api
@@ -6,310 +6,423 @@
 @implements IDisposable
 
 <div>
-    <div class="page-title">📋 История посещений</div>
+    <div class="page-header">
+        <div>
+            <div class="page-title">История посещений</div>
+            <div style="color:var(--text-muted);font-size:13px;margin-top:2px">Учёт въезда и выезда гостей</div>
+        </div>
+        <button class="btn-primary" @onclick="Refresh" disabled="@loading">
+            @(loading ? "⏳" : "🔄") Обновить
+        </button>
+    </div>
 
-    <!-- Панель фильтров -->
+    <!-- Фильтры -->
     <div class="filter-panel">
         <div class="filter-row">
-            <input class="filter-search" placeholder="🔍 Поиск по ФИО, паспорту, ТС, статусу..."
-                   @bind="search" @bind:event="oninput" @oninput="OnSearchInput" />
+            <input class="filter-search" placeholder="🔎 ФИО, паспорт, номер авто..."
+                   @bind="search" @bind:event="oninput" @bind:after="LoadData" />
             <div class="filter-btns">
-                @foreach (var (val, label) in filterBtns)
+                @foreach (var sf in StatusFilters)
                 {
-                    var v = val;
-                    <button class="btn-filter @(fStatus == v ? "active" : "")"
-                            @onclick="() => SetStatus(v)">@label</button>
+                    var sv = sf.Val;
+                    <button class="btn-filter @(status == sv ? "active" : "")"
+                            @onclick="() => { status = sv; _ = LoadData(); }">@sf.Lbl</button>
                 }
             </div>
         </div>
         <div class="filter-row">
-            <span style="color:#7899bb;font-size:12px">📅</span>
-            <input class="date-inp" type="date" @bind="dFrom" @bind:event="onchange" @onchange="Load" />
-            <span style="color:#7899bb;font-size:12px">—</span>
-            <input class="date-inp" type="date" @bind="dTo" @bind:event="onchange" @onchange="Load" />
+            <span style="color:var(--text-muted);font-size:12px">С:</span>
+            <input type="date" class="date-inp" value="@dateFrom"
+                   @onchange="e => { dateFrom = e.Value?.ToString() ?? string.Empty; _ = LoadData(); }" />
+            <span style="color:var(--text-muted);font-size:12px">По:</span>
+            <input type="date" class="date-inp" value="@dateTo"
+                   @onchange="e => { dateTo = e.Value?.ToString() ?? string.Empty; _ = LoadData(); }" />
             <button class="btn-quick" @onclick="SetToday">Сегодня</button>
             <button class="btn-quick" @onclick="SetWeek">7 дней</button>
-            <button class="btn-quick" @onclick="ClearDates">Все</button>
-            <span class="filter-count">@countText</span>
+            @if (!string.IsNullOrEmpty(dateFrom) || !string.IsNullOrEmpty(dateTo))
+            {
+                <button class="btn-quick" @onclick="ClearDates">× Сбросить</button>
+            }
+            @if (response != null)
+            {
+                <span class="filter-count">Найдено: @response.Summary.TotalCount</span>
+            }
         </div>
     </div>
 
-    <!-- Сводная панель -->
-    @if (summary != null)
+    <!-- Итоговая строка -->
+    @if (response != null)
     {
         <div class="summary-bar">
             <div class="summary-item">
-                <div class="summary-val">@summary.TotalCount</div>
-                <div class="summary-lbl">Записей</div>
+                <span class="summary-val">@response.Summary.TotalCount</span>
+                <span class="summary-lbl">Всего</span>
             </div>
             <div class="summary-sep"></div>
             <div class="summary-item">
-                <div class="summary-val">@summary.TotalDurationFormatted</div>
-                <div class="summary-lbl">Суммарное время</div>
+                <span class="summary-val" style="color:var(--good-text)">@response.Summary.OngoingCount</span>
+                <span class="summary-lbl">Внутри</span>
             </div>
             <div class="summary-sep"></div>
             <div class="summary-item">
-                <div class="summary-val">@summary.CompletedCount</div>
-                <div class="summary-lbl">Завершено</div>
+                <span class="summary-val" style="color:var(--bad-text)">@response.Summary.CompletedCount</span>
+                <span class="summary-lbl">Вышли</span>
             </div>
             <div class="summary-sep"></div>
             <div class="summary-item">
-                <div class="summary-val">@summary.OngoingCount</div>
-                <div class="summary-lbl">Внутри сейчас</div>
+                <span class="summary-val" style="color:var(--text-muted)">@response.Summary.TotalDurationFormatted</span>
+                <span class="summary-lbl">Общее время</span>
             </div>
         </div>
     }
 
     <!-- Таблица -->
     <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>№</th>
-                    <th>ФИО / Паспорт</th>
-                    <th>Цель / Принимающий</th>
-                    <th>🚗 ТС</th>
-                    <th>Вход</th>
-                    <th>Выход</th>
-                    <th>⏱ Длительность</th>
-                    <th>Статус</th>
-                    <th>Документы</th>
-                    @if (canManage) { <th>Действие</th> }
-                </tr>
-            </thead>
-            <tbody>
-                @if (loading)
-                {
-                    <tr><td colspan="@colSpan" class="table-msg">⏳ Загрузка...</td></tr>
-                }
-                else if (!string.IsNullOrEmpty(errorMsg))
-                {
-                    <tr><td colspan="@colSpan" class="table-err">⚠️ @errorMsg</td></tr>
-                }
-                else if (items.Count == 0)
-                {
-                    <tr><td colspan="@colSpan" class="table-msg">Записей не найдено</td></tr>
-                }
-                else
-                {
-                    @for (int i = 0; i < items.Count; i++)
+        @if (loading)
+        {
+            <div class="loading"><span class="spin">⏳</span> Загрузка...</div>
+        }
+        else if (!string.IsNullOrEmpty(loadErr))
+        {
+            <div class="table-err">⚠️ @loadErr</div>
+        }
+        else if (response == null || !response.Items.Any())
+        {
+            <div class="table-msg">
+                <div style="font-size:36px;margin-bottom:12px">📭</div>
+                <div>Нет записей по заданным фильтрам</div>
+            </div>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Гость</th>
+                        <th>Цель / Принимает</th>
+                        <th>Авто</th>
+                        <th>Въезд</th>
+                        <th>Выезд</th>
+                        <th>Время</th>
+                        <th>Статус</th>
+                        <th>Документы</th>
+                        @if (canManage)
+                        {
+                            <th style="text-align:center">Действия</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in response.Items)
                     {
-                        var g = items[i];
-                        var idx = i + 1;
-                        <tr class="row" @onclick="() => OpenModal(g)">
-                            <td><span style="color:#445566;font-size:11px">@idx</span></td>
+                        var item = g;
+                        <tr class="row" @onclick="() => detailGuest = item">
                             <td>
                                 <div class="guest-name">@g.FullName</div>
-                                <div class="guest-pass">@(g.Passport ?? "—")</div>
-                                @if (!string.IsNullOrEmpty(g.GroupId)) { <span class="tag tag-group">Группа</span> }
-                                @if (g.Status == "pending") { <span class="tag tag-pending">Заявка</span> }
-                            </td>
-                            <td>
-                                <div style="font-size:12px">@(g.Purpose ?? "—")</div>
-                                <div class="cell-sm">@(g.Host ?? "")</div>
-                            </td>
-                            <td>
-                                @if (!string.IsNullOrEmpty(g.CarBrand) || !string.IsNullOrEmpty(g.CarPlate))
+                                @if (!string.IsNullOrEmpty(g.Passport))
                                 {
-                                    <div style="font-size:12px">@(g.CarBrand ?? "")</div>
-                                    <div class="car-plate">@(g.CarPlate ?? "")</div>
+                                    <div class="guest-pass">@g.Nationality &nbsp;·&nbsp; @g.Passport</div>
                                 }
-                                else { <span style="color:#444">—</span> }
+                                @if (g.GroupId != null)
+                                {
+                                    <span class="tag tag-group">группа</span>
+                                }
+                            </td>
+                            <td>
+                                <div style="font-size:12px;color:var(--text-2)">@g.Purpose</div>
+                                @if (!string.IsNullOrEmpty(g.Host))
+                                {
+                                    <div class="cell-sm">→ @g.Host</div>
+                                }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(g.CarPlate))
+                                {
+                                    <span class="car-plate">@g.CarPlate</span>
+                                    @if (!string.IsNullOrEmpty(g.CarBrand))
+                                    {
+                                        <div class="cell-sm">@g.CarBrand</div>
+                                    }
+                                }
+                                else
+                                {
+                                    <span style="color:var(--text-dim)">—</span>
+                                }
                             </td>
                             <td>
                                 @if (!string.IsNullOrEmpty(g.EntryTime))
-                                { <span class="time-entry">@FmtDT(g.EntryTime)</span> }
+                                {
+                                    <span class="time-entry">@FmtTime(g.EntryTime)</span>
+                                }
                                 else if (!string.IsNullOrEmpty(g.PlannedDate))
-                                { <span class="time-plan">📅 @FmtDT(g.PlannedDate)?.Substring(0,10)</span> }
-                                else { <span style="color:#444">—</span> }
+                                {
+                                    <span class="time-plan">план: @FmtTime(g.PlannedDate)</span>
+                                }
+                                else
+                                {
+                                    <span style="color:var(--text-dim)">—</span>
+                                }
                             </td>
                             <td>
                                 @if (!string.IsNullOrEmpty(g.ExitTime))
-                                { <span class="time-exit">@FmtDT(g.ExitTime)</span> }
-                                else { <span style="color:#444">—</span> }
+                                {
+                                    <span class="time-exit">@FmtTime(g.ExitTime)</span>
+                                }
+                                else
+                                {
+                                    <span style="color:var(--text-dim)">—</span>
+                                }
                             </td>
                             <td>
                                 @if (!string.IsNullOrEmpty(g.DurationFormatted))
                                 {
                                     @if (g.Status == "inside")
-                                    { <span class="time-ongoing">🟢 @g.DurationFormatted</span> }
+                                    {
+                                        <span class="time-ongoing">⏱ @g.DurationFormatted</span>
+                                    }
                                     else
-                                    { <span class="time-duration">⏱ @g.DurationFormatted</span> }
+                                    {
+                                        <span class="time-duration">@g.DurationFormatted</span>
+                                    }
                                 }
-                                else { <span style="color:#444">—</span> }
+                                else
+                                {
+                                    <span style="color:var(--text-dim)">—</span>
+                                }
                             </td>
-                            <td>@((MarkupString)BadgeHtml(g.Status))</td>
+                            <td>
+                                <span class="@BadgeCls(g.Status)">@BadgeTxt(g.Status)</span>
+                            </td>
                             <td>
                                 <div class="doc-col">
-                                    <span class="@(g.HasPassportScan ? "doc-yes" : "doc-no")">
-                                        📄 @(g.HasPassportScan ? "Паспорт" : "нет")
-                                    </span>
-                                    <span class="@(g.HasPermitDoc ? "doc-yes" : "doc-no")">
-                                        📑 @(g.HasPermitDoc ? "Пропуск" : "нет")
-                                    </span>
+                                    @if (g.HasPassportScan)
+                                    {
+                                        <span class="doc-yes">📄 Паспорт</span>
+                                    }
+                                    @if (g.HasPermitDoc)
+                                    {
+                                        <span class="doc-yes">📑 Пропуск</span>
+                                    }
+                                    @if (!g.HasPassportScan && !g.HasPermitDoc)
+                                    {
+                                        <span class="doc-no">нет</span>
+                                    }
                                 </div>
                             </td>
                             @if (canManage)
                             {
-                                <td @onclick:stopPropagation="true">
+                                <td style="text-align:center" @onclick:stopPropagation="true">
                                     @if (g.Status == "pending")
                                     {
-                                        <button class="btn-entry" @onclick="() => DoEntry(g)">⬇ Вход</button>
+                                        <button class="btn-entry" @onclick="() => Entry(item)">▶ Въезд</button>
                                     }
-                                    @if (g.Status == "inside")
+                                    else if (g.Status == "inside")
                                     {
-                                        <button class="btn-exit" @onclick="() => DoExit(g)">⬆ Выход</button>
+                                        <button class="btn-exit" @onclick="() => Exit(item)">■ Выезд</button>
                                     }
                                 </td>
                             }
                         </tr>
                     }
-                }
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        }
     </div>
 </div>
 
-<!-- Модальное окно гостя -->
-@if (selectedGuest != null)
+<!-- Детальная карточка гостя -->
+@if (detailGuest != null)
 {
-    <div class="modal-bg" @onclick="CloseModal">
+    <div class="modal-bg" @onclick="() => detailGuest = null">
         <div class="modal-box" @onclick:stopPropagation="true">
             <div class="modal-hdr">
-                <h3 style="color:#e0eaf5;margin:0;font-size:18px">🪪 Карточка гостя</h3>
-                <button class="modal-close" @onclick="CloseModal">✕</button>
+                <span style="font-size:16px;font-weight:800;color:var(--text)">@detailGuest.FullName</span>
+                <button class="modal-close" @onclick="() => detailGuest = null">✕</button>
             </div>
-            @foreach (var (label, value, isPlate) in ModalRows(selectedGuest))
+            <div class="modal-row">
+                <span class="modal-lbl">Статус</span>
+                <span class="modal-val"><span class="@BadgeCls(detailGuest.Status)">@BadgeTxt(detailGuest.Status)</span></span>
+            </div>
+            @if (!string.IsNullOrEmpty(detailGuest.Passport))
             {
                 <div class="modal-row">
-                    <span class="modal-lbl">@label</span>
-                    <span class="modal-val"
-                          style="color:@(isPlate ? "#ffcc02" : "#e0eaf5");font-family:@(isPlate ? "monospace" : "inherit")">
-                        @value
+                    <span class="modal-lbl">Паспорт</span>
+                    <span class="modal-val">
+                        @detailGuest.Nationality &nbsp;·&nbsp; @detailGuest.Passport
+                        @if (!string.IsNullOrEmpty(detailGuest.Dob)) { <span style="color:var(--text-muted)"> · @detailGuest.Dob</span> }
                     </span>
                 </div>
             }
-            <div class="modal-row" style="align-items:center">
-                <span class="modal-lbl">Статус</span>
-                @((MarkupString)BadgeHtml(selectedGuest.Status))
+            <div class="modal-row">
+                <span class="modal-lbl">Цель визита</span>
+                <span class="modal-val">@(detailGuest.Purpose ?? "—")</span>
             </div>
+            <div class="modal-row">
+                <span class="modal-lbl">Принимает</span>
+                <span class="modal-val">@(detailGuest.Host ?? "—")</span>
+            </div>
+            @if (!string.IsNullOrEmpty(detailGuest.CarPlate))
+            {
+                <div class="modal-row">
+                    <span class="modal-lbl">Транспорт</span>
+                    <span class="modal-val"><span class="car-plate">@detailGuest.CarPlate</span> @detailGuest.CarBrand</span>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(detailGuest.PlannedDate))
+            {
+                <div class="modal-row">
+                    <span class="modal-lbl">Плановая дата</span>
+                    <span class="modal-val">@FmtTime(detailGuest.PlannedDate)</span>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(detailGuest.EntryTime))
+            {
+                <div class="modal-row">
+                    <span class="modal-lbl">Въезд</span>
+                    <span class="modal-val"><span class="time-entry">@FmtTime(detailGuest.EntryTime)</span></span>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(detailGuest.ExitTime))
+            {
+                <div class="modal-row">
+                    <span class="modal-lbl">Выезд</span>
+                    <span class="modal-val"><span class="time-exit">@FmtTime(detailGuest.ExitTime)</span></span>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(detailGuest.DurationFormatted))
+            {
+                <div class="modal-row">
+                    <span class="modal-lbl">Длительность</span>
+                    <span class="modal-val">@detailGuest.DurationFormatted</span>
+                </div>
+            }
+            <div class="modal-row">
+                <span class="modal-lbl">Создал</span>
+                <span class="modal-val">@(detailGuest.CreatedBy ?? "—")</span>
+            </div>
+            @if (canManage && (detailGuest.Status == "pending" || detailGuest.Status == "inside"))
+            {
+                <div style="margin-top:16px;display:flex;gap:10px">
+                    @{ var dg = detailGuest; }
+                    @if (detailGuest.Status == "pending")
+                    {
+                        <button class="btn-entry" style="padding:10px 24px;font-size:13px"
+                                @onclick="async () => { detailGuest = null; await Entry(dg); }">
+                            ▶ Отметить въезд
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn-exit" style="padding:10px 24px;font-size:13px"
+                                @onclick="async () => { detailGuest = null; await Exit(dg); }">
+                            ■ Отметить выезд
+                        </button>
+                    }
+                </div>
+            }
         </div>
     </div>
 }
 
 @code {
-    string search = "", fStatus = "all", dFrom = "", dTo = "";
-    string countText = "", errorMsg = "";
-    bool loading = false;
-    List<GuestItem> items = new();
-    GuestSummary? summary;
-    GuestItem? selectedGuest;
-    System.Timers.Timer? refreshTimer;
+    record StatusFilter(string Val, string Lbl);
 
-    bool canManage => State.Auth?.CanManageEntry == true;
-    int colSpan => canManage ? 10 : 9;
-
-    static readonly (string val, string label)[] filterBtns =
+    static readonly StatusFilter[] StatusFilters =
     {
-        ("all","Все"),("pending","🟡 Ожидается"),("inside","🟢 Внутри"),("exited","🔴 Вышли")
+        new("all",     "Все"),
+        new("pending", "Ожидается"),
+        new("inside",  "Внутри"),
+        new("exited",  "Вышел")
     };
 
-    System.Timers.Timer? searchTimer;
+    string search = "", status = "all", dateFrom = "", dateTo = "";
+    bool loading;
+    string loadErr = "";
+    GuestListResponse? response;
+    GuestItem? detailGuest;
 
-    void OnSearchInput(ChangeEventArgs e)
-    {
-        search = e.Value?.ToString() ?? "";
-        searchTimer?.Stop();
-        searchTimer?.Dispose();
-        searchTimer = new System.Timers.Timer(400);
-        searchTimer.Elapsed += async (_, _) => { searchTimer?.Dispose(); await InvokeAsync(Load); };
-        searchTimer.AutoReset = false;
-        searchTimer.Start();
-    }
-
-    void SetStatus(string v) { fStatus = v; _ = Load(); }
-    void SetToday() { dFrom = dTo = DateTime.Today.ToString("yyyy-MM-dd"); _ = Load(); }
-    void SetWeek()  { dFrom = DateTime.Today.AddDays(-7).ToString("yyyy-MM-dd"); dTo = DateTime.Today.ToString("yyyy-MM-dd"); _ = Load(); }
-    void ClearDates() { dFrom = dTo = ""; _ = Load(); }
+    bool canManage => State.Auth?.CanManageEntry == true;
 
     protected override async Task OnInitializedAsync()
     {
-        await Load();
-        refreshTimer = new System.Timers.Timer(30000);
-        refreshTimer.Elapsed += async (_, _) => await InvokeAsync(async () => { await Load(); StateHasChanged(); });
-        refreshTimer.AutoReset = true;
-        refreshTimer.Start();
+        State.OnChange += StateHasChanged;
+        await LoadData();
     }
 
-    async Task Load()
+    public void Dispose() => State.OnChange -= StateHasChanged;
+
+    async Task LoadData()
     {
-        loading = true; errorMsg = ""; StateHasChanged();
+        loading = true; loadErr = "";
+        StateHasChanged();
         try
         {
-            var data = await Api.GetGuestsAsync(search, fStatus, dFrom, dTo);
-            items = data.Items;
-            summary = data.Summary;
-            countText = $"Найдено: {data.Summary.TotalCount}";
+            response = await Api.GetGuestsAsync(search, status, dateFrom, dateTo);
+            await RefreshStats();
+        }
+        catch (Exception e) { loadErr = e.Message; }
+        finally { loading = false; }
+    }
+
+    async Task Refresh() => await LoadData();
+
+    async Task RefreshStats()
+    {
+        try
+        {
+            var all = await Api.GetGuestsAsync();
+            var today = DateTime.Today.ToString("yyyy-MM-dd");
+            var todayR = await Api.GetGuestsAsync("", "all", today, today);
             State.UpdateStats(new SidebarStats
             {
-                InsideCnt  = items.Count(g => g.Status == "inside"),
-                TodayCnt   = items.Count(g => IsoDate(g.EntryTime) == DateTime.Today.ToString("yyyy-MM-dd")),
-                PendingCnt = items.Count(g => g.Status == "pending"),
-                Total      = items.Count
+                InsideCnt  = all.Items.Count(g => g.Status == "inside"),
+                TodayCnt   = todayR.Summary.TotalCount,
+                PendingCnt = all.Items.Count(g => g.Status == "pending"),
+                Total      = all.Summary.TotalCount
             });
         }
-        catch (Exception e) { errorMsg = e.Message; }
-        finally { loading = false; StateHasChanged(); }
+        catch { }
     }
 
-    async Task DoEntry(GuestItem g)
+    void SetToday()
     {
-        try { await Api.GuestEntryAsync(g.Id); await Load(); }
-        catch (Exception e) { errorMsg = e.Message; }
+        dateFrom = dateTo = DateTime.Today.ToString("yyyy-MM-dd");
+        _ = LoadData();
     }
 
-    async Task DoExit(GuestItem g)
+    void SetWeek()
     {
-        try { await Api.GuestExitAsync(g.Id); await Load(); }
-        catch (Exception e) { errorMsg = e.Message; }
+        dateFrom = DateTime.Today.AddDays(-6).ToString("yyyy-MM-dd");
+        dateTo   = DateTime.Today.ToString("yyyy-MM-dd");
+        _ = LoadData();
     }
 
-    void OpenModal(GuestItem g) => selectedGuest = g;
-    void CloseModal() => selectedGuest = null;
+    void ClearDates() { dateFrom = dateTo = ""; _ = LoadData(); }
 
-    string? FmtDT(string? iso) =>
-        string.IsNullOrEmpty(iso) ? null :
-        DateTime.TryParse(iso, out var dt) ? dt.ToString("dd.MM.yyyy HH:mm") : iso;
+    async Task Entry(GuestItem g) { await Api.GuestEntryAsync(g.Id); await LoadData(); }
+    async Task Exit(GuestItem  g) { await Api.GuestExitAsync(g.Id);  await LoadData(); }
 
-    string IsoDate(string? iso) => iso?.Length >= 10 ? iso[..10] : "";
-
-    string BadgeHtml(string status) => status switch
+    static string FmtTime(string? iso)
     {
-        "inside"  => "<span class=\"badge-inside\">🟢 Внутри</span>",
-        "exited"  => "<span class=\"badge-exited\">🔴 Вышел</span>",
-        _         => "<span class=\"badge-pending\">🟡 Ожидается</span>"
+        if (string.IsNullOrEmpty(iso)) return "—";
+        if (DateTime.TryParse(iso, out var dt))
+            return dt.Date == DateTime.Today ? dt.ToString("HH:mm") : dt.ToString("dd.MM HH:mm");
+        return iso.Length >= 10 ? iso[..10] : iso;
+    }
+
+    static string BadgeCls(string s) => s switch
+    {
+        "inside"  => "badge-inside",
+        "exited"  => "badge-exited",
+        "pending" => "badge-pending",
+        _         => "badge-pending"
     };
 
-    IEnumerable<(string label, string value, bool isPlate)> ModalRows(GuestItem g)
+    static string BadgeTxt(string s) => s switch
     {
-        yield return ("ФИО",           g.FullName,                           false);
-        yield return ("Дата рождения", g.Dob          ?? "—",                false);
-        yield return ("Серия/Номер",   g.Passport     ?? "—",                false);
-        yield return ("Гражданство",   g.Nationality  ?? "—",                false);
-        yield return ("Цель визита",   g.Purpose      ?? "—",                false);
-        yield return ("Принимающий",   g.Host         ?? "—",                false);
-        yield return ("🚗 Марка ТС",   g.CarBrand     ?? "—",                false);
-        yield return ("🔢 Номер ТС",   g.CarPlate     ?? "—",                true);
-        yield return ("Плановая дата", g.PlannedDate != null ? (FmtDT(g.PlannedDate) ?? "—") : "—", false);
-        yield return ("Вход",          FmtDT(g.EntryTime) ?? "—",            false);
-        yield return ("Выход",         FmtDT(g.ExitTime)  ?? "—",            false);
-        yield return ("⏱ Длительность",g.DurationFormatted ?? "—",           false);
-        yield return ("Создал",        g.CreatedBy ?? "—",                   false);
-    }
-
-    public void Dispose()
-    {
-        refreshTimer?.Dispose();
-        searchTimer?.Dispose();
-    }
+        "inside"  => "Внутри",
+        "exited"  => "Вышел",
+        "pending" => "Ожидается",
+        _         => s
+    };
 }

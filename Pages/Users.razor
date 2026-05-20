@@ -5,56 +5,14 @@
 @inject AppState State
 
 <div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="page-title" style="margin:0">👥 Пользователи</div>
-        <button class="btn-primary" @onclick="ToggleCreate">+  Создать пользователя</button>
+        <button class="btn-primary" @onclick="ToggleCreate">+ Создать пользователя</button>
     </div>
 
     @if (!string.IsNullOrEmpty(flashMsg))
     {
         <div class="msg-ok">@flashMsg</div>
-    }
-
-    @if (showCreate)
-    {
-        <div class="card" style="margin-botto m:20px;max-width:600px">
-            <div style="display:flex;justify-content:space-between;margin-bottom:16px">
-                <b style="color:#e0eaf5">Новый пользователь</b>
-                <button style="background:none;border:none;color:#7899bb;font-size:18px;cursor:pointer"
-                        @onclick="() => showCreate = false">
-                    ✕
-                </button>
-            </div>
-            <div class="form-grid" style="margin-bottom:16px">
-                <div class="form-group">
-                    <label class="lbl">Логин</label>
-                    <input class="input" placeholder="username" @bind="cf_username" @bind:event="oninput" />
-                </div>
-                <div class="form-group">
-                    <label class="lbl">Пароль</label>
-                    <input class="input" type="password" placeholder="••••••" @bind="cf_password" @bind:event="oninput" />
-                </div>
-                <div class="form-group">
-                    <label class="lbl">Отображаемое имя</label>
-                    <input class="input" placeholder="Иванов И.И." @bind="cf_displayName" @bind:event="oninput" />
-                </div>
-                <div class="form-group">
-                    <label class="lbl">Роль</label>
-                    <select class="input" @bind="cf_roleId">
-                        <option value="0">— выберите —</option>
-                        @foreach (var r in State.RolesCache.Where(r => r.Name != "admin"))
-                        {
-                            <option value="@r.Id">@r.DisplayName</option>
-                        }
-                    </select>
-                </div>
-            </div>
-            @if (!string.IsNullOrEmpty(createErr))
-            {
-                <div style="color:#ef5350;font-size:13px;margin-bottom:10px">@createErr</div>
-            }
-            <button class="btn-primary" @onclick="CreateUser">Создать</button>
-        </div>
     }
 
     <div class="table-wrap">
@@ -82,7 +40,7 @@
                     {
                         <tr>
                             <td><div class="guest-name">@u.DisplayName</div></td>
-                            <td><span style="color:#7899bb">@u.Username</span></td>
+                            <td><span style="color:var(--text-muted);font-family:monospace;font-size:12px">@u.Username</span></td>
                             <td><span class="role-tag">@u.RoleDisplayName</span></td>
                             <td>
                                 <span class="@(u.IsBlocked ? "badge-blocked" : "badge-active")">
@@ -97,17 +55,14 @@
                                         <div class="pwd-row">
                                             <input class="pwd-inp" type="password" placeholder="Новый пароль"
                                                    @bind="newPwd" @bind:event="oninput" />
-                                            <button class="btn-sm btn-sm-green" @onclick="() => SavePwd(u.Id)">✓</button>
-                                            <button style="background:#333;border:none;border-radius:6px;padding:4px 8px;color:#aaa;cursor:pointer;font-size:11px"
-                                                    @onclick="CancelReset">
-                                                ✕
-                                            </button>
+                                            <button class="btn-sm btn-sm-green" @onclick="() => SavePwd(u.Id)" title="Сохранить">✓</button>
+                                            <button class="btn-sm" style="background:var(--surface-2);color:var(--text-dim);border:1px solid var(--border)"
+                                                    @onclick="CancelReset" title="Отмена">✕</button>
                                         </div>
                                     }
                                     else
                                     {
                                         <button class="btn-sm btn-sm-blue" @onclick="() => StartReset(u.Id)">🔑 Пароль</button>
-                                       
                                     }
                                     @if (u.RoleName != "admin")
                                     {
@@ -115,7 +70,7 @@
                                                 @onclick="() => ToggleBlock(u)">
                                             @(u.IsBlocked ? "🔓 Разблок." : "🔒 Заблок.")
                                         </button>
-                                        <button class="btn-sm-del" @onclick="() => DeleteUser(u)">🗑</button>
+                                        <button class="btn-sm-del" @onclick="() => DeleteUser(u)" title="Удалить">🗑</button>
                                     }
                                 </div>
                             </td>
@@ -126,6 +81,57 @@
         }
     </div>
 </div>
+
+<!-- Модалка создания пользователя -->
+@if (showCreate)
+{
+    <div class="modal-bg" @onclick="() => showCreate = false">
+        <div class="modal-box" style="max-width:480px" @onclick:stopPropagation="true">
+            <div class="modal-hdr">
+                <span style="font-size:16px;font-weight:800;color:var(--text)">Новый пользователь</span>
+                <button class="modal-close" @onclick="() => showCreate = false">✕</button>
+            </div>
+
+            <div class="form-grid" style="margin-bottom:16px">
+                <div class="form-group">
+                    <label class="lbl">Логин</label>
+                    <input class="input" placeholder="username" @bind="cf_username" @bind:event="oninput" />
+                </div>
+                <div class="form-group">
+                    <label class="lbl">Пароль</label>
+                    <input class="input" type="password" placeholder="••••••" @bind="cf_password" @bind:event="oninput" />
+                </div>
+                <div class="form-group">
+                    <label class="lbl">Отображаемое имя</label>
+                    <input class="input" placeholder="Иванов И.И." @bind="cf_displayName" @bind:event="oninput" />
+                </div>
+                <div class="form-group">
+                    <label class="lbl">Роль</label>
+                    <select class="input" @bind="cf_roleId">
+                        <option value="0">— выберите —</option>
+                        @foreach (var r in State.RolesCache.Where(r => r.Name != "admin"))
+                        {
+                            <option value="@r.Id">@r.DisplayName</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(createErr))
+            {
+                <div class="err-banner" style="margin-bottom:14px">@createErr</div>
+            }
+
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+                <button style="background:none;border:1px solid var(--border);border-radius:10px;padding:10px 18px;color:var(--text-muted);cursor:pointer;font-size:13px"
+                        @onclick="() => showCreate = false">
+                    Отмена
+                </button>
+                <button class="btn-primary" @onclick="CreateUser">Создать</button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     List<UserItem> users = new();
@@ -145,7 +151,13 @@
         finally { loading = false; }
     }
 
-    void ToggleCreate() => showCreate = !showCreate;
+    void ToggleCreate()
+    {
+        cf_username = cf_password = cf_displayName = "";
+        cf_roleId = 0;
+        createErr = "";
+        showCreate = true;
+    }
 
     async Task CreateUser()
     {
@@ -155,10 +167,9 @@
         { createErr = "Заполните все поля"; return; }
         try
         {
-            await Api.CreateUserAsync(cf_username, cf_password, cf_displayName, cf_roleId);
+            var ok = await Api.CreateUserAsync(cf_username, cf_password, cf_displayName, cf_roleId);
+            if (!ok) { createErr = "Логин уже занят"; return; }
             showCreate = false;
-            cf_username = cf_password = cf_displayName = "";
-            cf_roleId = 0;
             await LoadUsers();
             Flash("✅ Пользователь создан");
         }

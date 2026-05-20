@@ -1,20 +1,19 @@
 namespace KppBlazor.Models;
 
-// ─── Auth ───────────────────────────────────────────────
+// ── AuthInfo ──────────────────────────────────────────
 public class AuthInfo
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = "";
     public string Username { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public string RoleName { get; set; } = "";
-    public string Token { get; set; } = "local";
+    public string RoleId { get; set; } = "";
     public bool CanCreateRequest { get; set; }
     public bool CanViewHistory { get; set; }
     public bool CanManageEntry { get; set; }
-    public bool IsBlocked { get; set; }
 }
 
-// ─── Roles ──────────────────────────────────────────────
+// ── Roles ──────────────────────────────────────────────
 public class RoleItem
 {
     public int Id { get; set; }
@@ -26,21 +25,25 @@ public class RoleItem
     public bool IsSystem { get; set; }
 }
 
-// ─── Users ──────────────────────────────────────────────
+// ── Users ──────────────────────────────────────────────
 public class UserItem
 {
     public int Id { get; set; }
     public string Username { get; set; } = "";
     public string DisplayName { get; set; } = "";
+    public int RoleId { get; set; }
     public string RoleName { get; set; } = "";
     public string RoleDisplayName { get; set; } = "";
-    public int RoleId { get; set; }
-    public bool IsBlocked { get; set; }
-    public string CreatedAt { get; set; } = "";
     public string PasswordHash { get; set; } = "";
+    public bool IsBlocked { get; set; }
+    // Дополнительные флаги прав (дублируются из роли, но могут храниться здесь)
+    public bool CanCreateRequest { get; set; }
+    public bool CanViewHistory { get; set; }
+    public bool CanManageEntry { get; set; }
+    public string CreatedAt { get; set; } = "";
 }
 
-// ─── Guests ─────────────────────────────────────────────
+// ── Guests ─────────────────────────────────────────────
 public class GuestItem
 {
     public int Id { get; set; }
@@ -63,7 +66,7 @@ public class GuestItem
     public bool HasPermitDoc { get; set; }
     public string? PassportScanBase64 { get; set; }
     public string? PermitDocBase64 { get; set; }
-    // внутренние поля для расчёта длительности
+    // Внутренние поля для расчёта длительности
     public DateTime? EntryDt { get; set; }
     public DateTime? ExitDt { get; set; }
 }
@@ -98,7 +101,6 @@ public class GuestSummary
     public string TotalDurationFormatted { get; set; } = "0 мин";
 }
 
-// ─── Register form helpers ───────────────────────────────
 /// <summary>Одна строка в форме групповой заявки (Register.razor).</summary>
 public class MemberForm
 {

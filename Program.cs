@@ -7,14 +7,12 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
+builder.Services.AddSingleton<DataStore>();
+builder.Services.AddSingleton<ApiService>();
+builder.Services.AddSingleton<AppState>();
+builder.Services.AddSingleton<ThemeService>();
 
-// ─── In-memory БД и сервисы ──────────────────────────────
-// AddSingleton: один экземпляр на всё время жизни приложения
-builder.Services.AddSingleton<DataStore>();   // ← in-memory БД
-builder.Services.AddSingleton<ApiService>();  // ← локальный "API"
-builder.Services.AddSingleton<AppState>();    // ← состояние сессии
-
-// HttpClient оставляем на случай если понадобится реальный API в будущем
+// HttpClient остаётся для возможных внешних вызовов, но ApiService его не использует
 builder.Services.AddScoped(sp => new HttpClient
 {
     BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
