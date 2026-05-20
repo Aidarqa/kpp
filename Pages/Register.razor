@@ -7,7 +7,7 @@
 @inject AppState State
 @inject IJSRuntime JS
 
-<div>
+<div class="page-fill">
     <div class="page-header">
         <div>
             <div class="page-title">@(isAdmin ? "Новая заявка" : isKpp ? "Регистрация гостя" : "Создать заявку")</div>
@@ -15,9 +15,9 @@
         </div>
     </div>
 
-    <div class="@bannerCls" style="max-width:780px">@bannerTxt</div>
+    <div class="@bannerCls" style="max-width:780px;margin:0 auto 0">@bannerTxt</div>
 
-    <div class="card" style="max-width:780px">
+    <div class="card" style="max-width:780px;margin:0 auto">
         <!-- Основные поля -->
         <div class="form-grid">
             <div class="form-group">

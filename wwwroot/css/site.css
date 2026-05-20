@@ -187,11 +187,28 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 /* ─── MAIN ─── */
 #main {
     flex: 1;
+    display: flex;
+    flex-direction: column;
     padding: 32px 36px;
     overflow-y: auto; overflow-x: hidden;
     min-width: 0;
     position: relative;
     background: var(--bg);
+}
+
+/* ─── PAGE FILL: страница занимает всю высоту main ─── */
+.page-fill {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ─── TABLE FILL: таблица растягивается до низа ─── */
+.table-fill {
+    flex: 1;
+    min-height: 200px;
+    overflow-y: auto;
 }
 
 /* ══════════════════════════════════════════════
@@ -921,7 +938,7 @@ tr.row:last-child td:last-child  { border-radius: 0 0 16px 0; }
         box-shadow: 8px 0 48px rgba(0,0,0,.5);
     }
     #app-root:not(.sidebar-is-open) .sidebar-overlay { display: none; }
-    #main { padding: 16px 18px; }
+    #main { padding: 16px 18px; display: flex; flex-direction: column; }
     .form-grid { grid-template-columns: 1fr !important; }
     .filter-row { flex-wrap: wrap; }
     .summary-bar { gap: 14px; }

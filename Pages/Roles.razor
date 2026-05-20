@@ -4,7 +4,7 @@
 @inject ApiService Api
 @inject AppState State
 
-<div>
+<div class="page-fill">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="page-title" style="margin:0">🔑 Роли и права</div>
         <button class="btn-primary" @onclick="ToggleCreate">+ Создать роль</button>
@@ -15,7 +15,7 @@
         <div class="msg-ok">@flashMsg</div>
     }
 
-    <div class="table-wrap">
+    <div class="table-wrap table-fill">
         @if (loading)
         {
             <div class="loading"><span class="spin">⏳</span> Загрузка...</div>
