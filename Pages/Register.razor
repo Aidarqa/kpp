@@ -7,16 +7,15 @@
 @inject AppState State
 @inject IJSRuntime JS
 
-<div class="page-fill">
-    <div style="max-width:780px;width:100%;margin:0 auto">
-    <div class="page-header">
+<div class="page-fill page-fill-center">
+
+    <div class="page-header" style="margin-bottom:16px">
         <div>
             <div class="page-title">@(isAdmin ? "Новая заявка" : isKpp ? "Регистрация гостя" : "Создать заявку")</div>
-            <div style="color:var(--text-muted);font-size:13px;margin-top:2px">@bannerTxt</div>
         </div>
     </div>
 
-    <div class="@bannerCls">@bannerTxt</div>
+    <div class="@bannerCls" style="margin-bottom:16px">@bannerTxt</div>
 
     <div class="card">
         <!-- Основные поля -->
@@ -100,14 +99,16 @@
 
             <div class="form-group">
                 <label class="lbl">📑 Пропускной документ</label>
-                <label class="btn-scan" style="display:inline-block;margin-bottom:0;width:auto">
-                    📎 Загрузить документ
-                    <InputFile OnChange="OnPermitDoc" accept="image/*,application/pdf" style="display:none" />
-                </label>
-                @if (permitDocLoaded)
-                {
-                    <span style="color:var(--good-text);font-size:12px;margin-left:12px">✅ Загружен</span>
-                }
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <label style="display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);transition:border-color .15s,background .15s">
+                        📎 Загрузить документ
+                        <InputFile OnChange="OnPermitDoc" accept="image/*,application/pdf" style="display:none" />
+                    </label>
+                    @if (permitDocLoaded)
+                    {
+                        <span style="color:var(--good-text);font-size:12px">✅ Загружен</span>
+                    }
+                </div>
             </div>
         }
 
@@ -162,7 +163,6 @@
                 @onclick="Submit" disabled="@submitting">
             @(submitting ? "⏳ Сохранение..." : submitLabel)
         </button>
-    </div>
     </div>
 </div>
 

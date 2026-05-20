@@ -204,6 +204,15 @@ button:disabled { opacity: .45; cursor: not-allowed; }
     min-height: 0;
 }
 
+/* ─── CENTER VARIANT: контент центрирован (например, форма) ─── */
+.page-fill-center {
+    align-items: center;
+}
+.page-fill-center > * {
+    width: 100%;
+    max-width: 780px;
+}
+
 /* ─── TABLE FILL: таблица растягивается до низа ─── */
 .table-fill {
     flex: 1;
