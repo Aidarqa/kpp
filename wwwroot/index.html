@@ -3,23 +3,28 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>🌐 КПП — Контроль гостей</title>
+    <title>КПП — Контроль гостей</title>
     <base href="/kpp/" />
+    <link rel="icon" type="image/svg+xml" href="icons/kpp.svg" />
     <link rel="stylesheet" href="css/site.css" />
+    <meta name="theme-color" content="#030712" />
+    <meta name="description" content="Система контроля и учёта посетителей на КПП" />
 </head>
 <body>
     <div id="app">
-        <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#07111f;color:#7899bb;font-family:Segoe UI,sans-serif">
+        <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#030712;color:#64748b;font-family:Inter,Segoe UI,sans-serif">
             <div style="text-align:center">
-                <div style="font-size:48px;margin-bottom:16px">🌐</div>
-                <div style="font-size:16px">Загрузка КПП...</div>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 16px;display:block;animation:pulse 1.4s ease-in-out infinite">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                <div style="font-size:15px;font-weight:500">Загрузка системы...</div>
             </div>
         </div>
     </div>
     <div id="blazor-error-ui">
         Произошла непредвиденная ошибка.
         <a href="" class="reload">Перезагрузить</a>
-        <a class="dismiss">🗙</a>
+        <a class="dismiss">✕</a>
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
     <script>
@@ -29,7 +34,7 @@
             var isImg = dataUrl.startsWith('data:image');
             win.document.write(
                 '<html><head><title>Документ</title></head>' +
-                '<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh">' +
+                '<body style="margin:0;background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh">' +
                 (isImg
                     ? '<img src="' + dataUrl + '" style="max-width:100%;max-height:100vh;object-fit:contain"/>'
                     : '<iframe src="' + dataUrl + '" style="width:100vw;height:100vh;border:none"></iframe>') +
