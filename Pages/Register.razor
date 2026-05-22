@@ -40,7 +40,7 @@
                 </svg>
             </div>
             <div>
-                <div class="ocr-result-text">Автозаполнено @ocrFieldsFilled из 4 полей</div>
+                <div class="ocr-result-text">Автозаполнено @ocrFieldsFilled из 4 полей @if(ocrMethod == "ai-vision") {<span class='ocr-method-badge'>AI</span>} else if(ocrMethod == "tesseract-v2") {<span class='ocr-method-badge'>OCR</span>}</div>
                 <div class="ocr-result-details">Проверьте данные перед отправкой</div>
             </div>
         </div>
@@ -304,6 +304,7 @@
     // OCR state
     string ocrStatus = "";  // "", "scanning", "done", "error"
     int ocrFieldsFilled = 0;
+    string ocrMethod = "";  // "ai-vision" or "tesseract-v2"
     DotNetObjectReference<Register>? ocrRef;
 
     string bannerCls => isAdmin ? "info-banner banner-admin" : isKpp ? "info-banner banner-kpp" : "info-banner banner-user";
@@ -330,6 +331,7 @@
         errMsg = scanMsg = "";
         ocrStatus = "";
         ocrFieldsFilled = 0;
+        ocrMethod = "";
     }
 
     void SwitchMode(bool grp)
@@ -422,6 +424,11 @@
                 var v = nat.GetString() ?? "";
                 if (!string.IsNullOrWhiteSpace(v)) { nationality = v; filled++; }
             }
+
+            // Track which method was used
+            if (root.TryGetProperty("method", out var mth))
+                ocrMethod = mth.GetString() ?? "";
+            else ocrMethod = "";
 
             ocrFieldsFilled = filled;
             ocrStatus = filled > 0 ? "done" : "error";

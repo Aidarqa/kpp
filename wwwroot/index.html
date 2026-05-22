@@ -57,108 +57,355 @@
             } catch (e) {}
         };
 
-        // ─── Passport OCR with Tesseract.js ───
+        // ═══════════════════════════════════════════════════════
+        //  Passport OCR Engine v2 — AI Vision + Tesseract + MRZ
+        // ═══════════════════════════════════════════════════════
         window.passportOcr = {
             _worker: null,
+            _progressCb: null,
 
+            // ─── Progress reporting ───
+            setProgress: function (pct) {
+                var el = document.getElementById('ocr-progress');
+                if (el) el.style.width = pct + '%';
+            },
+
+            // ─── Tesseract worker (lazy init) ───
             getWorker: async function () {
                 if (this._worker) return this._worker;
+                this.setProgress(5);
                 this._worker = await Tesseract.createWorker('rus+eng', 1, {
                     logger: function (m) {
                         if (m.status === 'recognizing text') {
                             var pct = Math.round((m.progress || 0) * 100);
-                            var el = document.getElementById('ocr-progress');
-                            if (el) el.style.width = pct + '%';
+                            passportOcr.setProgress(pct);
                         }
                     }
                 });
                 return this._worker;
             },
 
-            // Main function: takes base64 data URL, returns parsed JSON
-            scanPassport: async function (dataUrl, dotNetRef) {
-                try {
-                    // Notify Blazor: scanning started
-                    if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'scanning');
+            // ═════════════════════════════════════════════
+            //  IMAGE PREPROCESSING (Canvas-based)
+            // ═════════════════════════════════════════════
 
-                    var worker = await this.getWorker();
-
-                    // Run OCR
-                    var result = await worker.recognize(dataUrl);
-                    var text = result.data.text;
-
-                    // Parse passport fields from OCR text
-                    var parsed = this.parsePassportText(text);
-                    parsed.rawOcr = text;
-
-                    // Notify Blazor: scanning done
-                    if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'done');
-
-                    return JSON.stringify(parsed);
-                } catch (err) {
-                    console.error('OCR error:', err);
-                    if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'error');
-                    return JSON.stringify({ error: err.message || 'OCR failed' });
-                }
+            // Load image from data URL → Image object
+            loadImage: function (dataUrl) {
+                return new Promise(function (resolve, reject) {
+                    var img = new Image();
+                    img.onload = function () { resolve(img); };
+                    img.onerror = function () { reject(new Error('Image load failed')); };
+                    img.src = dataUrl;
+                });
             },
 
-            // Smart passport text parser
+            // Preprocess image for OCR: grayscale → contrast → binarize
+            preprocessImage: function (img, opts) {
+                opts = opts || {};
+                var canvas = document.createElement('canvas');
+                var ctx = canvas.getContext('2d');
+
+                // Resize to optimal OCR size
+                var maxW = opts.maxWidth || 2400;
+                var w = img.width, h = img.height;
+                if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+                canvas.width = w;
+                canvas.height = h;
+
+                ctx.drawImage(img, 0, 0, w, h);
+                var imageData = ctx.getImageData(0, 0, w, h);
+                var data = imageData.data;
+                var len = data.length;
+
+                // Step 1: Grayscale
+                for (var i = 0; i < len; i += 4) {
+                    var gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                    data[i] = data[i + 1] = data[i + 2] = gray;
+                }
+
+                // Step 2: Contrast enhancement
+                var contrast = opts.contrast || 70;
+                var factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+                for (var i = 0; i < len; i += 4) {
+                    data[i]     = Math.min(255, Math.max(0, factor * (data[i] - 128) + 128));
+                    data[i + 1] = Math.min(255, Math.max(0, factor * (data[i + 1] - 128) + 128));
+                    data[i + 2] = Math.min(255, Math.max(0, factor * (data[i + 2] - 128) + 128));
+                }
+
+                // Step 3: Otsu's threshold (binarize to pure B&W)
+                if (opts.binarize !== false) {
+                    var histogram = new Array(256).fill(0);
+                    var total = len / 4;
+                    for (var i = 0; i < len; i += 4) histogram[Math.round(data[i])]++;
+                    var sum = 0;
+                    for (var t = 0; t < 256; t++) sum += t * histogram[t];
+                    var sumB = 0, wB = 0, maxVar = 0, threshold = 128;
+                    for (var t = 0; t < 256; t++) {
+                        wB += histogram[t];
+                        if (wB === 0) continue;
+                        var wF = total - wB;
+                        if (wF === 0) break;
+                        sumB += t * histogram[t];
+                        var mB = sumB / wB;
+                        var mF = (sum - sumB) / wF;
+                        var v = wB * wF * (mB - mF) * (mB - mF);
+                        if (v > maxVar) { maxVar = v; threshold = t; }
+                    }
+                    for (var i = 0; i < len; i += 4) {
+                        var v = data[i] > threshold ? 255 : 0;
+                        data[i] = data[i + 1] = data[i + 2] = v;
+                    }
+                }
+
+                ctx.putImageData(imageData, 0, 0);
+                return canvas;
+            },
+
+            // Crop image to region {x, y, w, h} in percentages
+            cropRegion: function (img, region) {
+                var canvas = document.createElement('canvas');
+                var ctx = canvas.getContext('2d');
+                var sx = Math.round(img.width * (region.x || 0));
+                var sy = Math.round(img.height * (region.y || 0));
+                var sw = Math.round(img.width * (region.w || 1));
+                var sh = Math.round(img.height * (region.h || 1));
+                canvas.width = sw;
+                canvas.height = sh;
+                ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+                return canvas;
+            },
+
+            // Canvas → data URL
+            canvasToDataUrl: function (canvas) {
+                return canvas.toDataURL('image/png');
+            },
+
+            // ═════════════════════════════════════════════
+            //  MRZ PARSER (Machine Readable Zone)
+            // ═════════════════════════════════════════════
+
+            // Parse MRZ lines into structured data
+            parseMrz: function (text) {
+                var result = { fullName: '', dob: '', passport: '', nationality: '', gender: '' };
+
+                // Find lines that look like MRZ (mostly uppercase letters + digits + <)
+                var lines = text.split('\n').map(function (l) { return l.trim(); });
+                var mrzLines = [];
+                for (var i = 0; i < lines.length; i++) {
+                    // MRZ line: mostly A-Z, 0-9, and < characters, length ~30 or ~44
+                    var clean = lines[i].replace(/[^A-Z0-9<]/g, '');
+                    if (clean.length >= 25 && /^[A-Z0-9<]+$/.test(clean)) {
+                        mrzLines.push(clean);
+                    }
+                }
+
+                if (mrzLines.length === 0) {
+                    // Try to fix common OCR errors in MRZ
+                    for (var i = 0; i < lines.length; i++) {
+                        var line = lines[i].toUpperCase()
+                            .replace(/0/g, '0').replace(/O/g, '0')  // Ambiguous in MRZ context
+                            .replace(/[^A-Z0-9<\s]/g, '')
+                            .replace(/\s+/g, '');
+                        // Re-check: numbers should be digits, letters should be A-Z
+                        if (line.length >= 25) mrzLines.push(line);
+                    }
+                }
+
+                if (mrzLines.length === 0) return result;
+
+                // Detect format: TD1 (3 lines × 30 chars) or TD3 (2 lines × 44 chars)
+                if (mrzLines.length >= 3 && mrzLines[0].length >= 28 && mrzLines[0].length <= 33) {
+                    // TD1 format (ID card)
+                    result = this.parseMrzTd1(mrzLines[0], mrzLines[1], mrzLines[2]);
+                } else if (mrzLines.length >= 2 && mrzLines[0].length >= 40) {
+                    // TD3 format (passport)
+                    result = this.parseMrzTd3(mrzLines[0], mrzLines[1]);
+                } else {
+                    // Try both and pick the one with more data
+                    var td1 = mrzLines.length >= 3 ? this.parseMrzTd1(mrzLines[0], mrzLines[1], mrzLines[2]) : null;
+                    var td3 = mrzLines.length >= 2 ? this.parseMrzTd3(mrzLines[0], mrzLines[1]) : null;
+                    if (td1 && td3) {
+                        var td1Count = (td1.fullName ? 1 : 0) + (td1.dob ? 1 : 0) + (td1.passport ? 1 : 0);
+                        var td3Count = (td3.fullName ? 1 : 0) + (td3.dob ? 1 : 0) + (td3.passport ? 1 : 0);
+                        result = td1Count >= td3Count ? td1 : td3;
+                    } else {
+                        result = td1 || td3 || result;
+                    }
+                }
+
+                return result;
+            },
+
+            // Parse TD1 format (ID card — 3 lines × 30 chars)
+            parseMrzTd1: function (line1, line2, line3) {
+                var result = { fullName: '', dob: '', passport: '', nationality: '', gender: '' };
+                try {
+                    // Line 1: I<country><doc-num><check><opt>
+                    // Line 2: <dob><check><sex><expiry><check><nat><opt>
+                    // Line 3: <name><<<surname><<name>
+
+                    // Document number (line1, pos 5-14, check at 15)
+                    var docNum = line1.substring(5, 14).replace(/</g, '').trim();
+                    if (docNum.length >= 6) {
+                        // Kyrgyz ID: "ID" prefix + 7 digits
+                        var docType = line1.substring(0, 2);
+                        if (/ID|AC/i.test(docType)) {
+                            result.passport = docType.toUpperCase() + docNum;
+                        } else {
+                            result.passport = docNum;
+                        }
+                    }
+
+                    // Date of birth (line2, pos 0-6, YYMMDD)
+                    var dobStr = line2.substring(0, 6);
+                    result.dob = this.parseMrzDate(dobStr);
+
+                    // Gender (line2, pos 7)
+                    result.gender = line2.charAt(7) === 'F' ? 'Ж' : 'М';
+
+                    // Expiry (line2, pos 8-14)
+                    // Not needed for form
+
+                    // Nationality (line2, pos 15-17 or from line1)
+                    var natCode = line2.substring(15, 18).replace(/</g, '').trim();
+                    result.nationality = this.mrzCountryToName(natCode);
+
+                    // Name (line3): SURNAME<<GIVEN<NAME
+                    var namePart = line3.replace(/</g, ' ').replace(/\s+/g, ' ').trim();
+                    if (namePart) {
+                        // Convert from Latin MRZ to readable name
+                        result.fullName = this.mrzNameToCyrillic(namePart);
+                    }
+                } catch (e) { console.warn('MRZ TD1 parse error:', e); }
+                return result;
+            },
+
+            // Parse TD3 format (Passport — 2 lines × 44 chars)
+            parseMrzTd3: function (line1, line2) {
+                var result = { fullName: '', dob: '', passport: '', nationality: '', gender: '' };
+                try {
+                    // Line 1: P<country><surname><<name1><<name2...
+                    // Line 2: <doc-num><check><nat><dob><check><sex><expiry><check><opt><check>
+
+                    // Document number (line2, pos 0-9, check at 10)
+                    var docNum = line2.substring(0, 9).replace(/</g, '').trim();
+                    if (docNum.length >= 6) {
+                        result.passport = docNum;
+                    }
+
+                    // Nationality (line2, pos 10-12)
+                    var natCode = line2.substring(10, 13).replace(/</g, '').trim();
+                    result.nationality = this.mrzCountryToName(natCode);
+
+                    // Date of birth (line2, pos 13-19, YYMMDD)
+                    var dobStr = line2.substring(13, 19);
+                    result.dob = this.parseMrzDate(dobStr);
+
+                    // Gender (line2, pos 20)
+                    result.gender = line2.charAt(20) === 'F' ? 'Ж' : 'М';
+
+                    // Name from line1: after P<CC>
+                    var nameRaw = line1.substring(5).replace(/</g, ' ').replace(/\s+/g, ' ').trim();
+                    if (nameRaw) {
+                        result.fullName = this.mrzNameToCyrillic(nameRaw);
+                    }
+                } catch (e) { console.warn('MRZ TD3 parse error:', e); }
+                return result;
+            },
+
+            // Parse MRZ date YYMMDD → DD.MM.YYYY
+            parseMrzDate: function (dateStr) {
+                if (!dateStr || dateStr.length < 6) return '';
+                var yy = parseInt(dateStr.substring(0, 2));
+                var mm = dateStr.substring(2, 4);
+                var dd = dateStr.substring(4, 6);
+                // MRZ: yy > 50 → 1900s, yy <= 50 → 2000s
+                var year = yy > 50 ? 1900 + yy : 2000 + yy;
+                // Validate
+                var mmi = parseInt(mm);
+                var ddi = parseInt(dd);
+                if (mmi < 1 || mmi > 12 || ddi < 1 || ddi > 31) return '';
+                return dd + '.' + mm + '.' + year;
+            },
+
+            // MRZ country code → readable name
+            mrzCountryToName: function (code) {
+                var map = {
+                    'KGZ': 'КР', 'KG': 'КР', 'KAZ': 'KZ', 'RUS': 'РФ', 'RU': 'РФ',
+                    'UZB': 'UZ', 'TJK': 'TJ', 'TKM': 'TM', 'BLR': 'BY',
+                    'UKR': 'UA', 'CHN': 'CN', 'TUR': 'TR', 'DEU': 'DE',
+                    'USA': 'US', 'GBR': 'GB', 'KOR': 'KR', 'JPN': 'JP'
+                };
+                return map[code.toUpperCase()] || code.toUpperCase();
+            },
+
+            // Basic Latin→Cyrillic name transliteration (MRZ names are in Latin)
+            mrzNameToCyrillic: function (latinName) {
+                // Common transliteration for Kyrgyz/Russian names in MRZ
+                var map = {
+                    'A': 'А', 'B': 'Б', 'V': 'В', 'G': 'Г', 'D': 'Д', 'E': 'Е',
+                    'YO': 'Ё', 'ZH': 'Ж', 'Z': 'З', 'I': 'И', 'J': 'Й', 'K': 'К',
+                    'L': 'Л', 'M': 'М', 'N': 'Н', 'O': 'О', 'P': 'П', 'R': 'Р',
+                    'S': 'С', 'T': 'Т', 'U': 'У', 'F': 'Ф', 'KH': 'Х', 'TS': 'Ц',
+                    'CH': 'Ч', 'SH': 'Ш', 'SHCH': 'Щ', 'YU': 'Ю', 'YA': 'Я',
+                    'Y': 'Й', 'W': 'В'
+                };
+                // For now, just return the Latin name (more reliable than bad transliteration)
+                // Cyrillic name will be extracted from the full-text OCR pass
+                return latinName;
+            },
+
+            // ═════════════════════════════════════════════
+            //  FULL-TEXT PASSPORT PARSER (improved)
+            // ═════════════════════════════════════════════
+
             parsePassportText: function (text) {
                 var result = {
-                    fullName: '',
-                    dob: '',
-                    passport: '',
-                    nationality: '',
-                    gender: '',
-                    rawOcr: ''
+                    fullName: '', dob: '', passport: '', nationality: '', gender: ''
                 };
 
-                // Clean up text
                 var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l.length > 1; });
                 var fullText = lines.join(' ');
 
                 // ─── Passport number (Серия и номер) ───
-                // Russian passport: 4 digits + 6 digits (e.g., 4510 123456)
-                // Kyrgyz passport: similar format or just digits
                 var passportPatterns = [
-                    /(\d{2}\s?\d{2})\s?(\d{6})/g,          // 45 10 123456 or 4510 123456
-                    /(\d{4})\s?[А-ЯA-Z]{0,2}\s?(\d{6})/g,  // 4510КГ 123456
-                    /серия\s*:?\s*(\d{2}\s?\d{2})/i,
-                    /номер\s*:?\s*(\d{6})/i,
-                    /(\d{2}\s?\d{2}\s?\d{6})/g              // Continuous digits
+                    /(?:серия|series)[:\s]*(\d{2}\s?\d{2})\s*(?:номер|number|№)[:\s]*(\d{6})/i,
+                    /ID\s*(\d{7,9})/i,                           // Kyrgyz ID: ID 1234567
+                    /(?:AN|АN|АМ)\s*(\d{7})/i,                   // Kyrgyz passport: AN 1234567
+                    /(\d{2}\s?\d{2})\s*(\d{6})/g,                // 45 10 123456
+                    /(\d{4})\s*(\d{6})/g,                         // 4510 123456
+                    /(\d{2}\s?\d{2}\s?\d{6})/g                   // Continuous
                 ];
 
-                var passportMatch = null;
                 for (var pi = 0; pi < passportPatterns.length; pi++) {
                     passportPatterns[pi].lastIndex = 0;
                     var pm = passportPatterns[pi].exec(fullText);
                     if (pm) {
-                        passportMatch = pm;
-                        break;
-                    }
-                }
-                if (passportMatch) {
-                    var pStr = passportMatch[0].replace(/\s+/g, ' ').trim();
-                    // Format as "XXXX XXXXXX"
-                    var digits = pStr.replace(/[^\d]/g, '');
-                    if (digits.length >= 10) {
-                        result.passport = digits.substring(0, 4) + ' ' + digits.substring(4, 10);
-                    } else if (digits.length >= 6) {
-                        result.passport = digits;
+                        if (pi <= 2) {
+                            // Specific format matched
+                            result.passport = pm[0].replace(/\s+/g, ' ').trim();
+                        } else {
+                            var digits = pm[0].replace(/[^\d]/g, '');
+                            if (digits.length >= 10) {
+                                result.passport = digits.substring(0, 4) + ' ' + digits.substring(4, 10);
+                            } else if (digits.length >= 6) {
+                                result.passport = digits;
+                            }
+                        }
+                        if (result.passport) break;
                     }
                 }
 
-                // ─── Full Name (ФИО) ───
-                // Look for lines with Cyrillic words that look like names
+                // ─── Full Name (ФИО) — prioritize Cyrillic ───
+                // Try keyword-based first
                 var namePatterns = [
-                    /(?:ф\.?и\.?о\.?|фио|фамилия|имя|отчество|name|surname)[:\s]*([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+){1,3})/i,
-                    /^([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+){1,3})$/m
+                    /(?:ф\.?и\.?о\.?|фио|фамилия)[:\s]*([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+){1,3})/i,
+                    /(?:имя|name)[:\s]*([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+){0,2})/i
                 ];
 
                 for (var ni = 0; ni < namePatterns.length; ni++) {
                     var nm = namePatterns[ni].exec(fullText);
                     if (nm) {
-                        // Verify it looks like a name (not a random word)
                         var words = nm[1].trim().split(/\s+/);
                         if (words.length >= 2 && words.length <= 4) {
                             result.fullName = nm[1].trim();
@@ -167,14 +414,14 @@
                     }
                 }
 
-                // If no name found with patterns, try heuristic: find a line with 2-3 capitalized Cyrillic words
+                // Heuristic: find line with 2-3 capitalized Cyrillic words
                 if (!result.fullName) {
+                    var skipWords = /паспорт|серия|номер|дата|выдан|код|подраздел|РОССИ|КЫРГЫЗ|KYRGYZ|RUSSIAN|РЕСПУБЛИК|ГОСУДАРСТВ|МИНИСТЕРСТВ|ГРАЖДАНСТВ|ПОЛ|МУЖ|ЖЕН|СТРАНА/i;
                     for (var li = 0; li < lines.length; li++) {
                         var line = lines[li];
-                        // Skip lines that are clearly not names
                         if (/^\d/.test(line)) continue;
-                        if (/пасспорт|паспорт|серия|номер|дата|выдан|код|подраздел|РОССИ|КЫРГЫЗ|KYRGYZ|RUSSIAN/i.test(line)) continue;
-                        
+                        if (skipWords.test(line)) continue;
+
                         var cyrillicWords = line.match(/[А-ЯЁ][а-яё]+/g);
                         if (cyrillicWords && cyrillicWords.length >= 2 && cyrillicWords.length <= 4) {
                             result.fullName = cyrillicWords.join(' ');
@@ -186,23 +433,23 @@
                 // ─── Date of Birth (Дата рождения) ───
                 var dobPatterns = [
                     /(?:дата\s*рожд|род\.?|born|DOB|date\s*of\s*birth)[:\s]*(\d{1,2}[\.\/\-]\d{1,2}[\.\/\-]\d{2,4})/i,
-                    /(\d{1,2}[\.\/]\d{1,2}[\.\/]\d{4})/g,
-                    /(\d{2})[\.\/](\d{2})[\.\/](\d{4})/g
+                    /(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{4})/g
                 ];
 
                 for (var di = 0; di < dobPatterns.length; di++) {
                     dobPatterns[di].lastIndex = 0;
                     var dm = dobPatterns[di].exec(fullText);
                     if (dm) {
-                        var dateStr = dm[1] || dm[0];
-                        // Normalize to DD.MM.YYYY
+                        var dateStr = (dm[1] || '') + (dm.length > 3 ? '.' + dm[2] + '.' + dm[3] : dm[0]);
+                        if (di === 0) dateStr = dm[1] || dm[0];
                         dateStr = dateStr.replace(/[\/\-]/g, '.');
-                        // Validate year is reasonable
                         var parts = dateStr.split('.');
                         if (parts.length === 3) {
+                            var day = parts[0].padStart(2, '0');
+                            var month = parts[1].padStart(2, '0');
                             var year = parseInt(parts[2]);
-                            if (year > 1900 && year < 2015) {
-                                result.dob = dateStr;
+                            if (year > 1900 && year < 2016) {
+                                result.dob = day + '.' + month + '.' + year;
                                 break;
                             }
                         }
@@ -211,17 +458,16 @@
 
                 // ─── Nationality (Гражданство) ───
                 var natPatterns = [
-                    /(?:гражданств|nationality|citizen)[:\s]*(РФ|Российск[а-яё]+\s+Федераци[яи]|Кыргызск[а-яё]+\s+Республик[аи]|КР|КЫРГЫЗСТАН|КИРГИЗИЯ|UZB|УЗБЕКИСТАН|ТАДЖИКИСТАН|KAZ|КАЗАХСТАН)/i,
-                    /\b(РФ|КР|КЫРГЫЗСТАН|РОССИЯ|УЗБЕКИСТАН|ТАДЖИКИСТАН|КАЗАХСТАН|TURKMENISTAN|BELARUS|БЕЛАРУСЬ)\b/i
+                    /(?:гражданств|nationality|citizen)[:\s]*(РФ|Российск[а-яё]+\s+Федераци[яи]|Кыргызск[а-яё]+\s+Республик[аи]|КР|КЫРГЫЗСТАН|КИРГИЗИЯ)/i,
+                    /\b(КЫРГЫЗСКАЯ\s+РЕСПУБЛИКА|КЫРГЫЗ\s+РЕСПУБЛИКАСЫ|КЫРГЫЗСТАН|РОССИЙСКАЯ\s+ФЕДЕРАЦИЯ|РОССИЯ|РФ|КР|УЗБЕКИСТАН|КАЗАХСТАН|ТАДЖИКИСТАН)\b/i
                 ];
 
                 for (var nai = 0; nai < natPatterns.length; nai++) {
                     var nam = natPatterns[nai].exec(fullText);
                     if (nam) {
                         result.nationality = nam[1].toUpperCase();
-                        // Normalize
-                        if (result.nationality === 'РОССИЯ' || result.nationality === 'РОССИЙСКАЯ ФЕДЕРАЦИЯ') result.nationality = 'РФ';
-                        if (result.nationality === 'КЫРГЫЗСТАН' || result.nationality === 'КЫРГЫЗСКАЯ РЕСПУБЛИКА') result.nationality = 'КР';
+                        if (result.nationality.indexOf('РОССИЙСК') >= 0 || result.nationality === 'РОССИЯ') result.nationality = 'РФ';
+                        if (result.nationality.indexOf('КЫРГЫЗ') >= 0 || result.nationality === 'КЫРГЫЗСТАН') result.nationality = 'КР';
                         if (result.nationality === 'КАЗАХСТАН') result.nationality = 'KZ';
                         if (result.nationality === 'УЗБЕКИСТАН') result.nationality = 'UZ';
                         if (result.nationality === 'ТАДЖИКИСТАН') result.nationality = 'TJ';
@@ -230,10 +476,190 @@
                 }
 
                 // ─── Gender (Пол) ───
-                if (/МУЖ|MALE|\bМ\b/i.test(fullText)) result.gender = 'М';
-                else if (/ЖЕН|FEMALE|\bЖ\b/i.test(fullText)) result.gender = 'Ж';
+                if (/\bМ\b|МУЖ|MALE/i.test(fullText)) result.gender = 'М';
+                else if (/\bЖ\b|ЖЕН|FEMALE/i.test(fullText)) result.gender = 'Ж';
 
                 return result;
+            },
+
+            // ═════════════════════════════════════════════
+            //  AI VISION API (optional, requires accessible endpoint)
+            // ═════════════════════════════════════════════
+
+            // Try AI Vision API for accurate passport recognition
+            scanWithAiVision: async function (dataUrl) {
+                // Configurable AI Vision endpoint (can be set via console or app settings)
+                var aiConfig = window.__kppOcrConfig || {};
+                var baseUrl = aiConfig.visionApiUrl || '';
+                var apiKey = aiConfig.visionApiKey || '';
+                var token = aiConfig.visionApiToken || '';
+                var chatId = aiConfig.visionApiChatId || '';
+                var userId = aiConfig.visionApiUserId || '';
+
+                if (!baseUrl) {
+                    console.log('AI Vision: no endpoint configured, skipping');
+                    return null;
+                }
+
+                try {
+                    var url = baseUrl + '/chat/completions/vision';
+                    var headers = {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + apiKey,
+                        'X-Z-AI-From': 'Z'
+                    };
+                    if (chatId) headers['X-Chat-Id'] = chatId;
+                    if (token) headers['X-Token'] = token;
+                    if (userId) headers['X-User-Id'] = userId;
+
+                    var body = {
+                        messages: [{
+                            role: 'user',
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: 'Это документ (паспорт или ID-карта). Извлеки данные в JSON формате с ключами: surname (фамилия), name (имя), patronymic (отчество), dob (дата рождения ДД.ММ.ГГГГ), passport_series (серия), passport_number (номер), nationality (гражданство), gender (М/Ж). Если поле не видно — пиши null. ОТВЕТЬ ТОЛЬКО JSON, без пояснений.'
+                                },
+                                { type: 'image_url', image_url: { url: dataUrl } }
+                            ]
+                        }],
+                        thinking: { type: 'disabled' }
+                    };
+
+                    var response = await fetch(url, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(body)
+                    });
+
+                    if (!response.ok) throw new Error('API returned ' + response.status);
+
+                    var data = await response.json();
+                    var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+                    if (!content) throw new Error('Empty response');
+
+                    // Parse AI response — extract JSON from possible markdown code blocks
+                    var jsonStr = content;
+                    var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+                    if (jsonMatch) jsonStr = jsonMatch[1].trim();
+
+                    // Remove any non-JSON text before/after
+                    var jsonStart = jsonStr.indexOf('{');
+                    var jsonEnd = jsonStr.lastIndexOf('}');
+                    if (jsonStart >= 0 && jsonEnd > jsonStart) {
+                        jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
+                    }
+
+                    var parsed = JSON.parse(jsonStr);
+                    var result = {
+                        fullName: [parsed.surname, parsed.name, parsed.patronymic].filter(Boolean).join(' '),
+                        dob: parsed.dob || '',
+                        passport: [parsed.passport_series, parsed.passport_number].filter(Boolean).join(' '),
+                        nationality: parsed.nationality || '',
+                        gender: parsed.gender || ''
+                    };
+
+                    // Normalize nationality
+                    if (result.nationality) {
+                        var nat = result.nationality.toUpperCase();
+                        if (nat.indexOf('КЫРГЫЗ') >= 0 || nat.indexOf('KGZ') >= 0 || nat === 'KG') result.nationality = 'КР';
+                        if (nat.indexOf('РОССИ') >= 0 || nat.indexOf('RUS') >= 0 || nat === 'RU') result.nationality = 'РФ';
+                        if (nat.indexOf('КАЗАХ') >= 0 || nat === 'KAZ') result.nationality = 'KZ';
+                        if (nat.indexOf('УЗБЕК') >= 0 || nat === 'UZB') result.nationality = 'UZ';
+                        if (nat.indexOf('ТАДЖИК') >= 0 || nat === 'TJK') result.nationality = 'TJ';
+                    }
+
+                    return result;
+                } catch (err) {
+                    console.warn('AI Vision failed:', err.message);
+                    return null;
+                }
+            },
+
+            // ═════════════════════════════════════════════
+            //  MAIN SCAN FUNCTION
+            // ═════════════════════════════════════════════
+
+            scanPassport: async function (dataUrl, dotNetRef) {
+                try {
+                    if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'scanning');
+                    this.setProgress(2);
+
+                    // ── Step 1: Try AI Vision API first (best quality) ──
+                    var aiResult = await this.scanWithAiVision(dataUrl);
+                    if (aiResult && (aiResult.fullName || aiResult.passport)) {
+                        console.log('OCR: AI Vision succeeded');
+                        aiResult.method = 'ai-vision';
+                        if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'done');
+                        return JSON.stringify(aiResult);
+                    }
+
+                    // ── Step 2: Load & preprocess image for Tesseract ──
+                    this.setProgress(5);
+                    var img = await this.loadImage(dataUrl);
+                    this.setProgress(10);
+
+                    // Pass 1: Full image with strong preprocessing (for text fields)
+                    var canvas1 = this.preprocessImage(img, { contrast: 70, binarize: true, maxWidth: 2400 });
+                    var processedFull = this.canvasToDataUrl(canvas1);
+                    this.setProgress(15);
+
+                    // Pass 2: MRZ zone (bottom 25-35% of image) with extra preprocessing
+                    var canvasMrz = this.cropRegion(img, { x: 0, y: 0.65, w: 1, h: 0.35 });
+                    var canvasMrzProc = this.preprocessImage(canvasMrz, { contrast: 90, binarize: true, maxWidth: 3000 });
+                    var processedMrz = this.canvasToDataUrl(canvasMrzProc);
+
+                    // Pass 3: Top portion (for name fields) - lighter preprocessing
+                    var canvasTop = this.cropRegion(img, { x: 0, y: 0.15, w: 0.7, h: 0.45 });
+                    var canvasTopProc = this.preprocessImage(canvasTop, { contrast: 50, binarize: true, maxWidth: 2400 });
+                    var processedTop = this.canvasToDataUrl(canvasTopProc);
+
+                    // ── Step 3: Run Tesseract OCR on all passes ──
+                    var worker = await this.getWorker();
+                    this.setProgress(20);
+
+                    var fullResult = await worker.recognize(processedFull);
+                    this.setProgress(50);
+                    var fullText = fullResult.data.text;
+
+                    var mrzResult = await worker.recognize(processedMrz);
+                    this.setProgress(75);
+                    var mrzText = mrzResult.data.text;
+
+                    var topResult = await worker.recognize(processedTop);
+                    this.setProgress(90);
+                    var topText = topResult.data.text;
+
+                    // ── Step 4: Parse results ──
+                    var parsedFull = this.parsePassportText(fullText);
+                    var parsedMrz = this.parseMrz(mrzText);
+                    var parsedTop = this.parsePassportText(topText);
+
+                    // ── Step 5: Merge results (MRZ priority for structured data, top for name) ──
+                    var merged = {
+                        fullName: parsedTop.fullName || parsedFull.fullName || parsedMrz.fullName,
+                        dob: parsedMrz.dob || parsedFull.dob || parsedTop.dob,
+                        passport: parsedMrz.passport || parsedFull.passport,
+                        nationality: parsedMrz.nationality || parsedFull.nationality || parsedTop.nationality,
+                        gender: parsedMrz.gender || parsedFull.gender || parsedTop.gender,
+                        method: 'tesseract-v2',
+                        rawOcr: fullText
+                    };
+
+                    console.log('OCR full text:', fullText);
+                    console.log('OCR MRZ text:', mrzText);
+                    console.log('OCR top text:', topText);
+                    console.log('OCR merged:', merged);
+
+                    if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'done');
+                    this.setProgress(100);
+                    return JSON.stringify(merged);
+
+                } catch (err) {
+                    console.error('OCR error:', err);
+                    if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'error');
+                    return JSON.stringify({ error: err.message || 'OCR failed' });
+                }
             },
 
             // Terminate worker (cleanup)
@@ -247,7 +673,6 @@
 
         // Auto-fill flash animation trigger
         window.triggerAutoFillFlash = function () {
-            // Find all input fields inside the register form and add flash class
             var inputs = document.querySelectorAll('.form-group .input');
             inputs.forEach(function (inp) {
                 if (inp.value && inp.value.length > 0) {
