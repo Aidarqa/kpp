@@ -86,44 +86,7 @@
                 if (text && status) status.textContent = text;
             }
 
-            Blazor.start({
-                loadBootResource: function (type, name, defaultUri, integrity) {
-                    // Fetch each resource and track progress
-                    var response = fetch(defaultUri, {
-                        integrity: integrity,
-                        cache: 'no-cache'
-                    });
-
-                    response.then(function (resp) {
-                        if (!resp.ok) return;
-                        var contentLength = resp.headers.get('Content-Length');
-                        if (!contentLength) return;
-                        var total = parseInt(contentLength, 10);
-                        var loaded = 0;
-                        var reader = resp.body.getReader();
-                        var chunks = [];
-
-                        function pump() {
-                            return reader.read().then(function (result) {
-                                if (result.done) {
-                                    // Resource loaded
-                                    return new Response(chunks.join(''), {
-                                        headers: resp.headers
-                                    });
-                                }
-                                chunks.push(result.value);
-                                loaded += result.value.length;
-                                // Approximate progress (each resource is ~equal weight)
-                                return pump();
-                            });
-                        }
-
-                        return pump();
-                    });
-
-                    return response;
-                }
-            }).then(function () {
+            Blazor.start().then(function () {
                 setProgress(100, 'Готово!');
                 setTimeout(function () {
                     if (screen) {
