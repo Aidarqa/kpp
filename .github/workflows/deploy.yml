@@ -36,7 +36,12 @@ jobs:
       - name: Fix base href for GitHub Pages
         run: |
           sed -i 's|<base href="/" />|<base href="/kpp/" />|g' release/wwwroot/index.html
-
+      - name: Compress framework files with Gzip
+        run: |
+          cd release/wwwroot/_framework
+          for f in $(find . -type f \( -name '*.dll' -o -name '*.wasm' -o -name '*.dat' \)); do
+            gzip -k -9 "$f" 2>/dev/null || true
+          done
       - name: Add .nojekyll
         run: touch release/wwwroot/.nojekyll
 
