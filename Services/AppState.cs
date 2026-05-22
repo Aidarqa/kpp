@@ -25,10 +25,19 @@ public class AppState
         NotifyStateChanged();
     }
 
+    public string HistoryFilter { get; set; } = "all";
+
+    public void SetHistoryFilter(string filter)
+    {
+        HistoryFilter = filter;
+        NotifyStateChanged();
+    }
+
     public void Logout()
     {
         Auth = null;
         Stats = new SidebarStats();
+        HistoryFilter = "all";
         NotifyStateChanged();
     }
 

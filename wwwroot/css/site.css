@@ -483,7 +483,10 @@ nav { flex: 1; padding: 10px 14px; }
     border: 1px solid var(--border);
     border-radius: 14px; padding: 14px 10px; text-align: center;
     transition: all .25s ease;
-    cursor: default;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    width: 100%;
 }
 .stat-card:hover {
     border-color: var(--accent-glow);
@@ -1239,10 +1242,16 @@ tr.row:last-child td:last-child  { border-radius: 0 0 18px 0; }
     position: relative; overflow: hidden;
     transition: all .25s ease;
     animation: fadeUp .4s ease-out;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    text-align: left;
+    width: 100%;
 }
 .dash-card:hover {
     transform: translateY(-3px);
     box-shadow: var(--shadow-md);
+    border-color: var(--accent-glow);
 }
 .dash-card-icon {
     width: 40px; height: 40px;
@@ -1448,6 +1457,26 @@ tr.row:last-child td:last-child  { border-radius: 0 0 18px 0; }
    ══════════════════════════════════════════════ */
 .sb-settings-section {
     display: flex; flex-direction: column; gap: 6px;
+}
+.sb-settings-row {
+    display: flex; align-items: center; gap: 8px;
+}
+.btn-theme-toggle {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all .2s ease;
+    flex-shrink: 0;
+}
+.btn-theme-toggle:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent-glow);
+    color: var(--accent-text);
+    box-shadow: 0 0 12px var(--accent-glow);
 }
 .sb-settings-label {
     font-size: 10px; font-weight: 700; color: var(--text-dim);
