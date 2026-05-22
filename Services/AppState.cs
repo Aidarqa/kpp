@@ -15,7 +15,7 @@ public class AppState
     {
         Auth = auth;
         if (auth != null)
-            CurrentView = auth.CanViewHistory ? "history" : "register";
+            CurrentView = auth.CanViewHistory ? "dashboard" : "register";
         NotifyStateChanged();
     }
 

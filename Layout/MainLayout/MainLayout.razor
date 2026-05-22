@@ -30,6 +30,9 @@ else
 
             @switch (State.CurrentView)
             {
+                case "dashboard":
+                    <Dashboard />
+                    break;
                 case "history":
                     <History />
                     break;
@@ -43,7 +46,7 @@ else
                     <Roles />
                     break;
                 default:
-                    <History />
+                    <Dashboard />
                     break;
             }
         </main>

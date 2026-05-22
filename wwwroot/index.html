@@ -41,6 +41,20 @@
                 '</body></html>'
             );
         };
+
+        window.requestNotificationPermission = async function () {
+            if (!('Notification' in window)) return false;
+            if (Notification.permission === 'granted') return true;
+            var result = await Notification.requestPermission();
+            return result === 'granted';
+        };
+
+        window.sendNotification = function (title, body, icon) {
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            try {
+                new Notification(title, { body: body, icon: icon || '/kpp/icons/kpp.svg' });
+            } catch (e) {}
+        };
     </script>
 </body>
 </html>

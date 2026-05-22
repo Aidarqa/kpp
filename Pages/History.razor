@@ -432,13 +432,25 @@
 
     bool canManage => State.Auth?.CanManageEntry == true;
 
+    private Timer? _autoRefreshTimer;
+
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += StateHasChanged;
         await LoadData();
+        // Auto-refresh every 30 seconds
+        _autoRefreshTimer = new Timer(async _ =>
+        {
+            try { await InvokeAsync(async () => { await LoadData(); }); }
+            catch { }
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
     }
 
-    public void Dispose() => State.OnChange -= StateHasChanged;
+    public void Dispose()
+    {
+        State.OnChange -= StateHasChanged;
+        _autoRefreshTimer?.Dispose();
+    }
 
     async Task LoadData()
     {

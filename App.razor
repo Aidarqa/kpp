@@ -3,6 +3,7 @@
 @using KppBlazor.Models
 @using System.Text.Json
 @inject ThemeService Theme
+@inject LocalizationService Loc
 @inject AppState State
 @inject ApiService Api
 @inject IJSRuntime JS
@@ -15,6 +16,7 @@
         if (firstRender)
         {
             await Theme.InitializeAsync();
+            await Loc.InitializeAsync();
             await RestoreAuthAsync();
         }
     }

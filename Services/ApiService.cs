@@ -68,7 +68,6 @@ public class ApiService
         => Task.FromResult(false);
 
     // ── Roles ──────────────────────────────────────────
-    // Основной метод, на который завязаны все перегрузки
     private Task<bool> SaveRoleInternal(RoleItem role)
     {
         if (role.Id == 0)
@@ -87,9 +86,6 @@ public class ApiService
 
     public Task<bool> SaveRoleAsync(RoleItem role) => SaveRoleInternal(role);
 
-    // Перегрузки, которые вызываются из Razor страниц
-
-    // CreateRoleAsync (5 аргументов: name, displayName, canCreate, canViewHistory, canManageEntry)
     public Task<bool> CreateRoleAsync(string name, string displayName,
         bool canCreate, bool canViewHistory, bool canManageEntry)
     {
@@ -104,7 +100,6 @@ public class ApiService
         return SaveRoleInternal(role);
     }
 
-    // UpdateRoleAsync (6 аргументов: id, name, displayName, canCreate, canViewHistory, canManageEntry) – вызывается из Roles.razor(230)
     public Task<bool> UpdateRoleAsync(int id, string name, string displayName,
         bool canCreate, bool canViewHistory, bool canManageEntry)
     {
@@ -120,7 +115,6 @@ public class ApiService
         return SaveRoleInternal(role);
     }
 
-    // UpdateRoleAsync (5 аргументов без displayName) – вызывается из Roles.razor(230) с 5 параметрами? Оставим для совместимости
     public Task<bool> UpdateRoleAsync(int id, string name, bool canCreate, bool canViewHistory, bool canManageEntry)
     {
         var role = new RoleItem
@@ -135,7 +129,6 @@ public class ApiService
         return SaveRoleInternal(role);
     }
 
-    // UpdateRoleAsync (5 аргументов без canManageEntry) – на всякий случай
     public Task<bool> UpdateRoleAsync(int id, string name, string displayName,
         bool canCreate, bool canViewHistory)
     {
@@ -188,4 +181,15 @@ public class ApiService
 
     public Task<bool> DeleteUserAsync(int userId)
         => Task.FromResult(_store.DeleteUser(userId));
+
+    // ── Audit Log ─────────────────────────────────────────
+    public Task<List<AuditLogEntry>> GetAuditLogAsync(int count = 50)
+        => Task.FromResult(_store.GetAuditLog(count));
+
+    public void AddAuditEntry(string action, string description, string performedBy, string targetName)
+        => _store.AddAuditEntry(action, description, performedBy, targetName);
+
+    // ── Dashboard ─────────────────────────────────────────
+    public Task<DashboardStats> GetDashboardStatsAsync()
+        => Task.FromResult(_store.GetDashboardStats());
 }

@@ -12,10 +12,12 @@ public class DataStore
     private readonly List<RoleItem> _roles = new();
     private readonly List<UserItem> _users = new();
     private readonly List<GuestItem> _guests = new();
+    private readonly List<AuditLogEntry> _auditLog = new();
 
     private int _roleSeq = 1;
     private int _userSeq = 1;
     private int _guestSeq = 1;
+    private int _auditSeq = 1;
 
     // ── Seed ────────────────────────────────────────────
     public DataStore()
@@ -285,10 +287,12 @@ public class DataStore
             g.Status = "inside";
             g.EntryDt = now;
             g.EntryTime = Iso(now);
+            AddAuditEntry("register", $"Гость зарегистрирован: {g.FullName}", createdBy, g.FullName);
         }
         else
         {
             g.Status = "pending";
+            AddAuditEntry("create", $"Создана заявка: {g.FullName}", createdBy, g.FullName);
         }
 
         _guests.Add(g);
@@ -304,6 +308,7 @@ public class DataStore
         g.EntryDt = now;
         g.EntryTime = Iso(now);
         RefreshDuration(g);
+        AddAuditEntry("entry", $"Отмечен въезд: {g.FullName}", "system", g.FullName);
         return true;
     }
 
@@ -316,6 +321,7 @@ public class DataStore
         g.ExitDt = now;
         g.ExitTime = Iso(now);
         RefreshDuration(g);
+        AddAuditEntry("exit", $"Отмечен выезд: {g.FullName}", "system", g.FullName);
         return true;
     }
 
@@ -342,5 +348,99 @@ public class DataStore
         using var sha = System.Security.Cryptography.SHA256.Create();
         var bytes = System.Text.Encoding.UTF8.GetBytes(password);
         return Convert.ToHexString(sha.ComputeHash(bytes));
+    }
+
+    // ── Audit Log ────────────────────────────────────────
+    public void AddAuditEntry(string action, string description, string performedBy, string targetName)
+    {
+        _auditLog.Add(new AuditLogEntry
+        {
+            Id = _auditSeq++,
+            Action = action,
+            Description = description,
+            PerformedBy = performedBy,
+            TargetName = targetName,
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    public List<AuditLogEntry> GetAuditLog(int count = 50)
+        => _auditLog.OrderByDescending(a => a.Timestamp).Take(count).ToList();
+
+    // ── Dashboard Stats ──────────────────────────────────
+    public DashboardStats GetDashboardStats()
+    {
+        var now = DateTime.UtcNow;
+        var today = now.Date;
+        var weekAgo = today.AddDays(-6);
+
+        var allGuests = _guests;
+        var insideCount = allGuests.Count(g => g.Status == "inside");
+        var pendingCount = allGuests.Count(g => g.Status == "pending");
+
+        // Сегодня
+        var todayGuests = allGuests.Where(g =>
+        {
+            var dt = ParseIso(g.EntryTime ?? g.PlannedDate);
+            return dt.HasValue && dt.Value.Date == today;
+        }).ToList();
+
+        var exitedToday = allGuests.Count(g =>
+        {
+            var dt = ParseIso(g.ExitTime);
+            return dt.HasValue && dt.Value.Date == today;
+        });
+
+        // За неделю
+        var weekGuests = allGuests.Where(g =>
+        {
+            var dt = ParseIso(g.EntryTime ?? g.PlannedDate);
+            return dt.HasValue && dt.Value.Date >= weekAgo;
+        }).ToList();
+
+        // Визиты по дням (последние 7 дней)
+        var dayNames = new[] { "Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб" };
+        var weeklyVisits = new List<DailyVisit>();
+        for (int i = 6; i >= 0; i--)
+        {
+            var day = today.AddDays(-i);
+            var count = allGuests.Count(g =>
+            {
+                var dt = ParseIso(g.EntryTime ?? g.PlannedDate);
+                return dt.HasValue && dt.Value.Date == day;
+            });
+            weeklyVisits.Add(new DailyVisit
+            {
+                Date = day.ToString("dd.MM"),
+                DayName = dayNames[(int)day.DayOfWeek],
+                Count = count
+            });
+        }
+
+        // Часы пик
+        var hourlyPeaks = new List<HourlyPeak>();
+        for (int h = 0; h < 24; h++)
+        {
+            var hour = h;
+            var count = allGuests.Count(g =>
+            {
+                var dt = ParseIso(g.EntryTime);
+                return dt.HasValue && dt.Value.Hour == hour;
+            });
+            if (count > 0)
+                hourlyPeaks.Add(new HourlyPeak { Hour = hour, Count = count });
+        }
+
+        return new DashboardStats
+        {
+            InsideCount = insideCount,
+            TodayCount = todayGuests.Count,
+            WeekCount = weekGuests.Count,
+            PendingCount = pendingCount,
+            TotalCount = allGuests.Count,
+            ExitedTodayCount = exitedToday,
+            WeeklyVisits = weeklyVisits,
+            HourlyPeaks = hourlyPeaks
+        };
     }
 }

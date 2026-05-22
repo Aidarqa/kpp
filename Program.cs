@@ -11,6 +11,7 @@ builder.Services.AddSingleton<DataStore>();
 builder.Services.AddSingleton<ApiService>();
 builder.Services.AddSingleton<AppState>();
 builder.Services.AddSingleton<ThemeService>();
+builder.Services.AddSingleton<LocalizationService>();
 
 // HttpClient остаётся для возможных внешних вызовов, но ApiService его не использует
 builder.Services.AddScoped(sp => new HttpClient

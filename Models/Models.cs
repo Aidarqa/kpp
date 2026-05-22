@@ -109,3 +109,40 @@ public class MemberForm
     public string Passport { get; set; } = "";
     public string Nationality { get; set; } = "КР";
 }
+
+// ── Audit Log ────────────────────────────────────────
+public class AuditLogEntry
+{
+    public int Id { get; set; }
+    public string Action { get; set; } = "";       // entry, exit, create, register, login, role_create, role_update, role_delete, user_create, user_block, user_unblock, user_delete, password_reset
+    public string Description { get; set; } = "";  // Человекочитаемое описание
+    public string PerformedBy { get; set; } = "";  // Username того, кто выполнил
+    public string TargetName { get; set; } = "";   // Имя гостя / пользователя
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+}
+
+// ── Dashboard Stats ─────────────────────────────────
+public class DashboardStats
+{
+    public int InsideCount { get; set; }
+    public int TodayCount { get; set; }
+    public int WeekCount { get; set; }
+    public int PendingCount { get; set; }
+    public int TotalCount { get; set; }
+    public int ExitedTodayCount { get; set; }
+    public List<DailyVisit> WeeklyVisits { get; set; } = new();
+    public List<HourlyPeak> HourlyPeaks { get; set; } = new();
+}
+
+public class DailyVisit
+{
+    public string Date { get; set; } = "";  // dd.MM
+    public string DayName { get; set; } = ""; // Пн, Вт, ...
+    public int Count { get; set; }
+}
+
+public class HourlyPeak
+{
+    public int Hour { get; set; }  // 0-23
+    public int Count { get; set; }
+}
