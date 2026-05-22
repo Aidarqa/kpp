@@ -27,6 +27,7 @@
         <a class="dismiss">✕</a>
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script>
         window.viewDoc = function (dataUrl) {
             var win = window.open('', '_blank');
@@ -54,6 +55,206 @@
             try {
                 new Notification(title, { body: body, icon: icon || '/kpp/icons/kpp.svg' });
             } catch (e) {}
+        };
+
+        // ─── Passport OCR with Tesseract.js ───
+        window.passportOcr = {
+            _worker: null,
+
+            getWorker: async function () {
+                if (this._worker) return this._worker;
+                this._worker = await Tesseract.createWorker('rus+eng', 1, {
+                    logger: function (m) {
+                        if (m.status === 'recognizing text') {
+                            var pct = Math.round((m.progress || 0) * 100);
+                            var el = document.getElementById('ocr-progress');
+                            if (el) el.style.width = pct + '%';
+                        }
+                    }
+                });
+                return this._worker;
+            },
+
+            // Main function: takes base64 data URL, returns parsed JSON
+            scanPassport: async function (dataUrl, dotNetRef) {
+                try {
+                    // Notify Blazor: scanning started
+                    if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'scanning');
+
+                    var worker = await this.getWorker();
+
+                    // Run OCR
+                    var result = await worker.recognize(dataUrl);
+                    var text = result.data.text;
+
+                    // Parse passport fields from OCR text
+                    var parsed = this.parsePassportText(text);
+                    parsed.rawOcr = text;
+
+                    // Notify Blazor: scanning done
+                    if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'done');
+
+                    return JSON.stringify(parsed);
+                } catch (err) {
+                    console.error('OCR error:', err);
+                    if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'error');
+                    return JSON.stringify({ error: err.message || 'OCR failed' });
+                }
+            },
+
+            // Smart passport text parser
+            parsePassportText: function (text) {
+                var result = {
+                    fullName: '',
+                    dob: '',
+                    passport: '',
+                    nationality: '',
+                    gender: '',
+                    rawOcr: ''
+                };
+
+                // Clean up text
+                var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l.length > 1; });
+                var fullText = lines.join(' ');
+
+                // ─── Passport number (Серия и номер) ───
+                // Russian passport: 4 digits + 6 digits (e.g., 4510 123456)
+                // Kyrgyz passport: similar format or just digits
+                var passportPatterns = [
+                    /(\d{2}\s?\d{2})\s?(\d{6})/g,          // 45 10 123456 or 4510 123456
+                    /(\d{4})\s?[А-ЯA-Z]{0,2}\s?(\d{6})/g,  // 4510КГ 123456
+                    /серия\s*:?\s*(\d{2}\s?\d{2})/i,
+                    /номер\s*:?\s*(\d{6})/i,
+                    /(\d{2}\s?\d{2}\s?\d{6})/g              // Continuous digits
+                ];
+
+                var passportMatch = null;
+                for (var pi = 0; pi < passportPatterns.length; pi++) {
+                    passportPatterns[pi].lastIndex = 0;
+                    var pm = passportPatterns[pi].exec(fullText);
+                    if (pm) {
+                        passportMatch = pm;
+                        break;
+                    }
+                }
+                if (passportMatch) {
+                    var pStr = passportMatch[0].replace(/\s+/g, ' ').trim();
+                    // Format as "XXXX XXXXXX"
+                    var digits = pStr.replace(/[^\d]/g, '');
+                    if (digits.length >= 10) {
+                        result.passport = digits.substring(0, 4) + ' ' + digits.substring(4, 10);
+                    } else if (digits.length >= 6) {
+                        result.passport = digits;
+                    }
+                }
+
+                // ─── Full Name (ФИО) ───
+                // Look for lines with Cyrillic words that look like names
+                var namePatterns = [
+                    /(?:ф\.?и\.?о\.?|фио|фамилия|имя|отчество|name|surname)[:\s]*([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+){1,3})/i,
+                    /^([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+){1,3})$/m
+                ];
+
+                for (var ni = 0; ni < namePatterns.length; ni++) {
+                    var nm = namePatterns[ni].exec(fullText);
+                    if (nm) {
+                        // Verify it looks like a name (not a random word)
+                        var words = nm[1].trim().split(/\s+/);
+                        if (words.length >= 2 && words.length <= 4) {
+                            result.fullName = nm[1].trim();
+                            break;
+                        }
+                    }
+                }
+
+                // If no name found with patterns, try heuristic: find a line with 2-3 capitalized Cyrillic words
+                if (!result.fullName) {
+                    for (var li = 0; li < lines.length; li++) {
+                        var line = lines[li];
+                        // Skip lines that are clearly not names
+                        if (/^\d/.test(line)) continue;
+                        if (/пасспорт|паспорт|серия|номер|дата|выдан|код|подраздел|РОССИ|КЫРГЫЗ|KYRGYZ|RUSSIAN/i.test(line)) continue;
+                        
+                        var cyrillicWords = line.match(/[А-ЯЁ][а-яё]+/g);
+                        if (cyrillicWords && cyrillicWords.length >= 2 && cyrillicWords.length <= 4) {
+                            result.fullName = cyrillicWords.join(' ');
+                            break;
+                        }
+                    }
+                }
+
+                // ─── Date of Birth (Дата рождения) ───
+                var dobPatterns = [
+                    /(?:дата\s*рожд|род\.?|born|DOB|date\s*of\s*birth)[:\s]*(\d{1,2}[\.\/\-]\d{1,2}[\.\/\-]\d{2,4})/i,
+                    /(\d{1,2}[\.\/]\d{1,2}[\.\/]\d{4})/g,
+                    /(\d{2})[\.\/](\d{2})[\.\/](\d{4})/g
+                ];
+
+                for (var di = 0; di < dobPatterns.length; di++) {
+                    dobPatterns[di].lastIndex = 0;
+                    var dm = dobPatterns[di].exec(fullText);
+                    if (dm) {
+                        var dateStr = dm[1] || dm[0];
+                        // Normalize to DD.MM.YYYY
+                        dateStr = dateStr.replace(/[\/\-]/g, '.');
+                        // Validate year is reasonable
+                        var parts = dateStr.split('.');
+                        if (parts.length === 3) {
+                            var year = parseInt(parts[2]);
+                            if (year > 1900 && year < 2015) {
+                                result.dob = dateStr;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // ─── Nationality (Гражданство) ───
+                var natPatterns = [
+                    /(?:гражданств|nationality|citizen)[:\s]*(РФ|Российск[а-яё]+\s+Федераци[яи]|Кыргызск[а-яё]+\s+Республик[аи]|КР|КЫРГЫЗСТАН|КИРГИЗИЯ|UZB|УЗБЕКИСТАН|ТАДЖИКИСТАН|KAZ|КАЗАХСТАН)/i,
+                    /\b(РФ|КР|КЫРГЫЗСТАН|РОССИЯ|УЗБЕКИСТАН|ТАДЖИКИСТАН|КАЗАХСТАН|TURKMENISTAN|BELARUS|БЕЛАРУСЬ)\b/i
+                ];
+
+                for (var nai = 0; nai < natPatterns.length; nai++) {
+                    var nam = natPatterns[nai].exec(fullText);
+                    if (nam) {
+                        result.nationality = nam[1].toUpperCase();
+                        // Normalize
+                        if (result.nationality === 'РОССИЯ' || result.nationality === 'РОССИЙСКАЯ ФЕДЕРАЦИЯ') result.nationality = 'РФ';
+                        if (result.nationality === 'КЫРГЫЗСТАН' || result.nationality === 'КЫРГЫЗСКАЯ РЕСПУБЛИКА') result.nationality = 'КР';
+                        if (result.nationality === 'КАЗАХСТАН') result.nationality = 'KZ';
+                        if (result.nationality === 'УЗБЕКИСТАН') result.nationality = 'UZ';
+                        if (result.nationality === 'ТАДЖИКИСТАН') result.nationality = 'TJ';
+                        break;
+                    }
+                }
+
+                // ─── Gender (Пол) ───
+                if (/МУЖ|MALE|\bМ\b/i.test(fullText)) result.gender = 'М';
+                else if (/ЖЕН|FEMALE|\bЖ\b/i.test(fullText)) result.gender = 'Ж';
+
+                return result;
+            },
+
+            // Terminate worker (cleanup)
+            terminate: function () {
+                if (this._worker) {
+                    this._worker.terminate();
+                    this._worker = null;
+                }
+            }
+        };
+
+        // Auto-fill flash animation trigger
+        window.triggerAutoFillFlash = function () {
+            // Find all input fields inside the register form and add flash class
+            var inputs = document.querySelectorAll('.form-group .input');
+            inputs.forEach(function (inp) {
+                if (inp.value && inp.value.length > 0) {
+                    inp.classList.add('input-auto-filled');
+                    setTimeout(function () { inp.classList.remove('input-auto-filled'); }, 1500);
+                }
+            });
         };
     </script>
 </body>

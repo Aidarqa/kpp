@@ -6,8 +6,52 @@
 @inject ApiService Api
 @inject AppState State
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <div class="page-fill page-fill-center">
+
+    <!-- OCR Scan Indicator -->
+    @if (ocrStatus == "scanning")
+    {
+        <div class="ocr-scanner">
+            <div class="ocr-scanner-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+            </div>
+            <div class="ocr-scanner-body">
+                <div class="ocr-scanner-title">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    Распознавание паспорта...
+                </div>
+                <div class="ocr-progress-bar">
+                    <div class="ocr-progress-fill" id="ocr-progress"></div>
+                </div>
+            </div>
+        </div>
+    }
+    @if (ocrStatus == "done" && ocrFieldsFilled > 0)
+    {
+        <div class="ocr-result-card">
+            <div class="ocr-result-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            </div>
+            <div>
+                <div class="ocr-result-text">Автозаполнено @ocrFieldsFilled из 4 полей</div>
+                <div class="ocr-result-details">Проверьте данные перед отправкой</div>
+            </div>
+        </div>
+    }
+    @if (ocrStatus == "error")
+    {
+        <div class="ocr-error-card">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Не удалось распознать паспорт. Заполните вручную.
+        </div>
+    }
 
     <!-- Заголовок -->
     <div class="page-header" style="margin-bottom:10px">
@@ -121,6 +165,7 @@
                 <label class="btn-upload">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                     Скан паспорта
+                    <span class="lbl-auto" style="margin-left:2px">OCR</span>
                     <InputFile OnChange="OnPassportScan" accept="image/*,application/pdf" style="display:none" />
                 </label>
                 @if (!string.IsNullOrEmpty(scanMsg))
@@ -256,6 +301,11 @@
     string errMsg = "", scanMsg = "", scanMsgColor = "var(--accent-text)";
     List<MemberForm> members = new() { new MemberForm() };
 
+    // OCR state
+    string ocrStatus = "";  // "", "scanning", "done", "error"
+    int ocrFieldsFilled = 0;
+    DotNetObjectReference<Register>? ocrRef;
+
     string bannerCls => isAdmin ? "info-banner banner-admin" : isKpp ? "info-banner banner-kpp" : "info-banner banner-user";
     string bannerTxt => isAdmin ? "Заявка создаётся со статусом «Ожидается»."
                      : isKpp ? "Гость будет зарегистрирован со статусом «Внутри»."
@@ -278,6 +328,8 @@
         groupMode = false;
         members = new() { new MemberForm() };
         errMsg = scanMsg = "";
+        ocrStatus = "";
+        ocrFieldsFilled = 0;
     }
 
     void SwitchMode(bool grp)
@@ -314,12 +366,91 @@
             await f.OpenReadStream(MaxFileBytes).CopyToAsync(ms);
             passportScanBase64 = "data:" + f.ContentType + ";base64," + Convert.ToBase64String(ms.ToArray());
             scanMsg = "Скан загружен"; scanMsgColor = "var(--good-text)";
+
+            // Auto-run OCR if it's an image
+            if (f.ContentType.StartsWith("image/"))
+            {
+                _ = RunOcrAsync(passportScanBase64);
+            }
         }
         catch (Exception ex)
         {
             scanMsg = ex.Message;
             scanMsgColor = "var(--bad-text)";
         }
+    }
+
+    async Task RunOcrAsync(string imageDataUrl)
+    {
+        try
+        {
+            ocrStatus = "scanning";
+            ocrFieldsFilled = 0;
+            StateHasChanged();
+
+            ocrRef = DotNetObjectReference.Create(this);
+            var json = await JS.InvokeAsync<string>("passportOcr.scanPassport", imageDataUrl, ocrRef);
+            var result = System.Text.Json.JsonDocument.Parse(json);
+            var root = result.RootElement;
+
+            if (root.TryGetProperty("error", out var errProp))
+            {
+                ocrStatus = "error";
+                StateHasChanged();
+                return;
+            }
+
+            // Auto-fill fields only if currently empty
+            int filled = 0;
+            if (root.TryGetProperty("fullName", out var fn) && string.IsNullOrWhiteSpace(fullName))
+            {
+                var v = fn.GetString() ?? "";
+                if (!string.IsNullOrWhiteSpace(v)) { fullName = v; filled++; }
+            }
+            if (root.TryGetProperty("dob", out var db) && string.IsNullOrWhiteSpace(dob))
+            {
+                var v = db.GetString() ?? "";
+                if (!string.IsNullOrWhiteSpace(v)) { dob = v; filled++; }
+            }
+            if (root.TryGetProperty("passport", out var pp) && string.IsNullOrWhiteSpace(passport))
+            {
+                var v = pp.GetString() ?? "";
+                if (!string.IsNullOrWhiteSpace(v)) { passport = v; filled++; }
+            }
+            if (root.TryGetProperty("nationality", out var nat) && (string.IsNullOrWhiteSpace(nationality) || nationality == "РФ"))
+            {
+                var v = nat.GetString() ?? "";
+                if (!string.IsNullOrWhiteSpace(v)) { nationality = v; filled++; }
+            }
+
+            ocrFieldsFilled = filled;
+            ocrStatus = filled > 0 ? "done" : "error";
+            StateHasChanged();
+
+            // Trigger auto-fill flash animation on filled inputs
+            if (filled > 0)
+            {
+                try { await JS.InvokeVoidAsync("triggerAutoFillFlash"); } catch { }
+            }
+        }
+        catch
+        {
+            ocrStatus = "error";
+            StateHasChanged();
+        }
+    }
+
+    // JSInvokable callback for OCR status
+    [JSInvokable]
+    public void OnOcrStatusChanged(string status)
+    {
+        // Status updates come from JS during scanning
+        // We use this for real-time progress but main status is set in RunOcrAsync
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        ocrRef?.Dispose();
     }
 
     async Task OnPermitDoc(InputFileChangeEventArgs e)
