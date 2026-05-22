@@ -344,6 +344,14 @@ button:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
     padding: 24px 20px 20px;
     border-bottom: 1px solid var(--border);
     position: relative;
+    cursor: pointer;
+    transition: background .2s ease;
+}
+.sb-brand:hover {
+    background: var(--surface-2);
+}
+.sb-brand:active {
+    transform: scale(.98);
 }
 .sb-brand-inner {
     display: flex; align-items: center; gap: 14px;
@@ -365,6 +373,24 @@ button:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
     color: var(--text); letter-spacing: -.3px;
 }
 .sb-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-weight: 500; }
+
+/* Header theme toggle */
+.btn-mode-toggle-header {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all .2s ease;
+}
+.btn-mode-toggle-header:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent-glow);
+    color: var(--accent-text);
+    box-shadow: 0 0 16px var(--accent-glow);
+}
 
 /* User */
 .sb-user {
