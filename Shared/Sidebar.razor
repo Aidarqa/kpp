@@ -168,11 +168,11 @@
             <div class="sb-settings-label">🌐</div>
             <div class="lang-picker">
                 <button class="lang-btn @(Loc.CurrentLang == "ru" ? "active" : "")"
-                        @onclick="async () => await Loc.SetLangAsync("ru")">RU</button>
+                        @onclick='async () => await Loc.SetLangAsync("ru")'>RU</button>
                 <button class="lang-btn @(Loc.CurrentLang == "ky" ? "active" : "")"
-                        @onclick="async () => await Loc.SetLangAsync("ky")">KG</button>
+                        @onclick='async () => await Loc.SetLangAsync("ky")'>KG</button>
                 <button class="lang-btn @(Loc.CurrentLang == "en" ? "active" : "")"
-                        @onclick="async () => await Loc.SetLangAsync("en")">EN</button>
+                        @onclick='async () => await Loc.SetLangAsync("en")'>EN</button>
             </div>
         </div>
         <button class="btn-logout" @onclick="async () => await Logout()">
