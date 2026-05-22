@@ -398,69 +398,161 @@
                 return map[code.toUpperCase()] || code.toUpperCase();
             },
 
-            // ═══ FULL-TEXT PASSPORT PARSER ═══
+            // ═══ FULL-TEXT PASSPORT PARSER v2 ═══
+            // Line-by-line extraction for Kyrgyz ID card + Russian passport + generic
 
             parsePassportText: function (text) {
                 var result = { fullName: '', dob: '', passport: '', nationality: '', gender: '' };
                 var lines = text.split('\n').map(function(l){return l.trim();}).filter(function(l){return l.length>1;});
                 var fullText = lines.join(' ');
 
-                var passportPatterns = [
-                    /(?:серия|series)[:\s]*(\d{2}\s?\d{2})\s*(?:номер|number|№)[:\s]*(\d{6})/i,
-                    /ID\s*(\d{7,9})/i,
-                    /(?:AN|АN|АМ)\s*(\d{7})/i,
-                    /(\d{2}\s?\d{2})\s*(\d{6})/g,
-                    /(\d{4})\s*(\d{6})/g,
-                    /(\d{2}\s?\d{2}\s?\d{6})/g
-                ];
-                for (var pi=0; pi<passportPatterns.length; pi++) {
-                    passportPatterns[pi].lastIndex = 0;
-                    var pm = passportPatterns[pi].exec(fullText);
-                    if (pm) {
-                        if (pi<=2) { result.passport = pm[0].replace(/\s+/g,' ').trim(); }
-                        else { var digits=pm[0].replace(/[^\d]/g,''); if(digits.length>=10) result.passport=digits.substring(0,4)+' '+digits.substring(4,10); else if(digits.length>=6) result.passport=digits; }
-                        if (result.passport) break;
+                // ── Step 1: Line-by-line label→value extraction (Kyrgyz ID / Russian passport) ──
+                var surname = '', givenName = '', patronymic = '';
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i];
+
+                    // Surname / Фамилия
+                    if (/фамилиясы|фамилия|surname/i.test(line) && !surname) {
+                        for (var j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                            var val = lines[j];
+                            // Try all-caps Cyrillic word (like ЭРБАЕВ)
+                            var cyrMatch = val.match(/^([А-ЯЁ]{2,}(?:[-][А-ЯЁ]+)*)\s*$/);
+                            if (cyrMatch) { surname = cyrMatch[1]; break; }
+                            // Try finding all-caps Cyrillic words in noisy line
+                            var cyrWords = val.match(/[А-ЯЁ]{3,}/g);
+                            if (cyrWords && cyrWords.length === 1) { surname = cyrWords[0]; break; }
+                        }
+                    }
+
+                    // Given name / Имя (but NOT "Отчество")
+                    if (/(?:аты|имя|nome|given\s*name)\b/i.test(line) && !/отчество|patronymic|атасынын/i.test(line) && !givenName) {
+                        for (var j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                            var val = lines[j];
+                            var cyrMatch = val.match(/^([А-ЯЁ]{2,}(?:[-][А-ЯЁ]+)*)\s*$/);
+                            if (cyrMatch) { givenName = cyrMatch[1]; break; }
+                            var cyrWords = val.match(/[А-ЯЁ]{3,}/g);
+                            if (cyrWords && cyrWords.length === 1) { givenName = cyrWords[0]; break; }
+                        }
+                    }
+
+                    // Patronymic / Отчество
+                    if (/(?:атасынын|отчество|patronymic)/i.test(line) && !patronymic) {
+                        for (var j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                            var val = lines[j];
+                            var cyrMatch = val.match(/^([А-ЯЁ]{2,}(?:[-][А-ЯЁ]+)*)\s*$/);
+                            if (cyrMatch) { patronymic = cyrMatch[1]; break; }
+                            var cyrWords = val.match(/[А-ЯЁ]{3,}/g);
+                            if (cyrWords && cyrWords.length === 1) { patronymic = cyrWords[0]; break; }
+                        }
+                    }
+
+                    // Gender / Пол
+                    if (/(?:жынысы|пол\b|sex\b)/i.test(line) && !result.gender) {
+                        var gm = line.match(/\bМ\b/);
+                        var gf = line.match(/\bЖ\b/);
+                        if (gm && !gf) result.gender = 'М';
+                        else if (gf && !gm) result.gender = 'Ж';
+                        if (!result.gender && i + 1 < lines.length) {
+                            var nextL = lines[i + 1].trim();
+                            if (/^[МM]$/.test(nextL)) result.gender = 'М';
+                            else if (/^[ЖF]$/.test(nextL)) result.gender = 'Ж';
+                        }
+                    }
+
+                    // Nationality / Гражданство
+                    if (/(?:жарандыгы|гражданств|nationality)/i.test(line) && !result.nationality) {
+                        for (var j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                            var val = lines[j].trim();
+                            if (/КЫРГЫЗ|KYRGYZ/i.test(val)) { result.nationality = 'КР'; break; }
+                            if (/РОССИЙСК|RUSSIAN/i.test(val)) { result.nationality = 'РФ'; break; }
+                            if (/КАЗАХ|KAZAKH/i.test(val)) { result.nationality = 'KZ'; break; }
+                            if (/УЗБЕК|UZBEK/i.test(val)) { result.nationality = 'UZ'; break; }
+                            if (/ТАДЖИК|TAJIK/i.test(val)) { result.nationality = 'TJ'; break; }
+                            var capsWords = val.match(/[А-ЯЁ]{3,}/g);
+                            if (capsWords && capsWords.length >= 1) {
+                                var joined = capsWords.join(' ');
+                                if (/КЫРГЫЗ/.test(joined)) { result.nationality = 'КР'; break; }
+                                if (/РОССИЙСК/.test(joined)) { result.nationality = 'РФ'; break; }
+                            }
+                        }
+                    }
+
+                    // Date of birth / Дата рождения
+                    if (/(?:туулган|дата\s*рожд|born|date\s*of\s*bir)/i.test(line) && !result.dob) {
+                        var dateM = line.match(/(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{4})/);
+                        if (dateM) {
+                            result.dob = dateM[1].padStart(2,'0') + '.' + dateM[2].padStart(2,'0') + '.' + dateM[3];
+                        }
+                        if (!result.dob) {
+                            for (var j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                                var dm = lines[j].match(/(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{4})/);
+                                if (dm) {
+                                    result.dob = dm[1].padStart(2,'0') + '.' + dm[2].padStart(2,'0') + '.' + dm[3];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Passport / Document number
+                    if (/(?:документтин|документа|document\s*#|паспорт|серия)/i.test(line) && !result.passport) {
+                        var idM = line.match(/ID\s*(\d{5,9})/i);
+                        if (idM) { result.passport = 'ID' + idM[1]; }
+                        if (!result.passport) {
+                            for (var j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                                var idM2 = lines[j].match(/ID\s*(\d{5,9})/i);
+                                if (idM2) { result.passport = 'ID' + idM2[1]; break; }
+                                var rusM = lines[j].match(/(\d{2}\s?\d{2})\s*(\d{6})/);
+                                if (rusM) { result.passport = rusM[1].replace(/\s/g,'') + ' ' + rusM[2]; break; }
+                            }
+                        }
                     }
                 }
 
-                var namePatterns = [
-                    /(?:ф\.?и\.?о\.?|фио|фамилия)[:\s]*([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+){1,3})/i,
-                    /(?:имя|name)[:\s]*([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+){0,2})/i
-                ];
-                for (var ni=0; ni<namePatterns.length; ni++) {
-                    var nm = namePatterns[ni].exec(fullText);
-                    if (nm) { var words=nm[1].trim().split(/\s+/); if(words.length>=2&&words.length<=4){result.fullName=nm[1].trim();break;} }
+                // Build fullName from components
+                if (surname || givenName || patronymic) {
+                    result.fullName = [surname, givenName, patronymic].filter(Boolean).join(' ');
                 }
-                if (!result.fullName) {
-                    var skipWords = /паспорт|серия|номер|дата|выдан|код|подраздел|РОССИ|КЫРГЫЗ|KYRGYZ|RUSSIAN|РЕСПУБЛИК|ГОСУДАРСТВ|МИНИСТЕРСТВ|ГРАЖДАНСТВ|ПОЛ|МУЖ|ЖЕН|СТРАНА/i;
-                    for (var li=0;li<lines.length;li++) {
-                        var line=lines[li]; if(/^\d/.test(line))continue; if(skipWords.test(line))continue;
-                        var cyrillicWords=line.match(/[А-ЯЁ][а-яё]+/g);
-                        if(cyrillicWords&&cyrillicWords.length>=2&&cyrillicWords.length<=4){result.fullName=cyrillicWords.join(' ');break;}
+
+                // ── Step 2: Fallback regex extraction ──
+
+                // Passport fallback
+                if (!result.passport) {
+                    var pm = fullText.match(/ID\s*(\d{7,9})/i);
+                    if (pm) result.passport = 'ID' + pm[1];
+                    else {
+                        pm = fullText.match(/(?:серия|series)[:\s]*(\d{2}\s?\d{2})\s*(?:номер|number|№)[:\s]*(\d{6})/i);
+                        if (pm) result.passport = pm[1].replace(/\s/g,'') + ' ' + pm[2];
                     }
                 }
 
-                var dobPatterns = [
-                    /(?:дата\s*рожд|род\.?|born|DOB|date\s*of\s*birth)[:\s]*(\d{1,2}[\.\/\-]\d{1,2}[\.\/\-]\d{2,4})/i,
-                    /(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{4})/g
-                ];
-                for (var di=0;di<dobPatterns.length;di++) {
-                    dobPatterns[di].lastIndex=0;
-                    var dm=dobPatterns[di].exec(fullText);
-                    if(dm){var dateStr=(dm[1]||'')+(dm.length>3?'.'+dm[2]+'.'+dm[3]:dm[0]);if(di===0)dateStr=dm[1]||dm[0];dateStr=dateStr.replace(/[\/\-]/g,'.');var parts=dateStr.split('.');if(parts.length===3){var day=parts[0].padStart(2,'0');var month=parts[1].padStart(2,'0');var year=parseInt(parts[2]);if(year>1900&&year<2016){result.dob=day+'.'+month+'.'+year;break;}}}
+                // DOB fallback
+                if (!result.dob) {
+                    var dm = fullText.match(/(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{4})/);
+                    if (dm) {
+                        var y = parseInt(dm[3]);
+                        if (y > 1900 && y < 2016) {
+                            result.dob = dm[1].padStart(2,'0') + '.' + dm[2].padStart(2,'0') + '.' + dm[3];
+                        }
+                    }
                 }
 
-                var natPatterns = [
-                    /(?:гражданств|nationality|citizen)[:\s]*(РФ|Российск[а-яё]+\s+Федераци[яи]|Кыргызск[а-яё]+\s+Республик[аи]|КР|КЫРГЫЗСТАН|КИРГИЗИЯ)/i,
-                    /\b(КЫРГЫЗСКАЯ\s+РЕСПУБЛИКА|КЫРГЫЗ\s+РЕСПУБЛИКАСЫ|КЫРГЫЗСТАН|РОССИЙСКАЯ\s+ФЕДЕРАЦИЯ|РОССИЯ|РФ|КР|УЗБЕКИСТАН|КАЗАХСТАН|ТАДЖИКИСТАН)\b/i
-                ];
-                for (var nai=0;nai<natPatterns.length;nai++) {
-                    var nam=natPatterns[nai].exec(fullText);
-                    if(nam){result.nationality=nam[1].toUpperCase();if(result.nationality.indexOf('РОССИЙСК')>=0||result.nationality==='РОССИЯ')result.nationality='РФ';if(result.nationality.indexOf('КЫРГЫЗ')>=0||result.nationality==='КЫРГЫЗСТАН')result.nationality='КР';if(result.nationality==='КАЗАХСТАН')result.nationality='KZ';if(result.nationality==='УЗБЕКИСТАН')result.nationality='UZ';if(result.nationality==='ТАДЖИКИСТАН')result.nationality='TJ';break;}
+                // Nationality fallback
+                if (!result.nationality) {
+                    var nam = fullText.match(/\b(КЫРГЫЗСКАЯ\s+РЕСПУБЛИКА|КЫРГЫЗ\s+РЕСПУБЛИКАСЫ|КЫРГЫЗСТАН|РОССИЙСКАЯ\s+ФЕДЕРАЦИЯ|РОССИЯ|РФ|КР)\b/i);
+                    if (nam) {
+                        result.nationality = nam[1].toUpperCase();
+                        if (result.nationality.indexOf('КЫРГЫЗ') >= 0 || result.nationality === 'КР') result.nationality = 'КР';
+                        if (result.nationality.indexOf('РОССИЙСК') >= 0 || result.nationality === 'РФ') result.nationality = 'РФ';
+                    }
                 }
 
-                if(/\bМ\b|МУЖ|MALE/i.test(fullText))result.gender='М';
-                else if(/\bЖ\b|ЖЕН|FEMALE/i.test(fullText))result.gender='Ж';
+                // Gender fallback
+                if (!result.gender) {
+                    if (/\bМ\b|МУЖ|MALE/i.test(fullText)) result.gender = 'М';
+                    else if (/\bЖ\b|ЖЕН|FEMALE/i.test(fullText)) result.gender = 'Ж';
+                }
+
                 return result;
             },
 
@@ -516,35 +608,48 @@
                     this.setProgress(8);
                     var img = await this.loadImage(dataUrl);
                     this.setProgress(12);
-                    var canvas1 = this.preprocessImage(img, { contrast: 70, binarize: true, maxWidth: 2400 });
+                    // Preprocess full image with moderate contrast
+                    var canvas1 = this.preprocessImage(img, { contrast: 60, binarize: true, maxWidth: 2400 });
                     var processedFull = this.canvasToDataUrl(canvas1);
                     this.setProgress(15);
-                    var canvasMrz = this.cropRegion(img, { x:0, y:0.65, w:1, h:0.35 });
+                    // Crop data region of ID card (middle area where text fields are)
+                    var canvasData = this.cropRegion(img, { x:0.02, y:0.15, w:0.96, h:0.75 });
+                    var canvasDataProc = this.preprocessImage(canvasData, { contrast: 70, binarize: true, maxWidth: 2800 });
+                    var processedData = this.canvasToDataUrl(canvasDataProc);
+                    // Also try a lighter contrast version for better name recognition
+                    var canvasDataLight = this.preprocessImage(canvasData, { contrast: 40, binarize: false, maxWidth: 2400 });
+                    var processedDataLight = this.canvasToDataUrl(canvasDataLight);
+                    // MRZ zone (bottom of document)
+                    var canvasMrz = this.cropRegion(img, { x:0, y:0.7, w:1, h:0.3 });
                     var canvasMrzProc = this.preprocessImage(canvasMrz, { contrast: 90, binarize: true, maxWidth: 3000 });
                     var processedMrz = this.canvasToDataUrl(canvasMrzProc);
-                    var canvasTop = this.cropRegion(img, { x:0, y:0.15, w:0.7, h:0.45 });
-                    var canvasTopProc = this.preprocessImage(canvasTop, { contrast: 50, binarize: true, maxWidth: 2400 });
-                    var processedTop = this.canvasToDataUrl(canvasTopProc);
                     var worker = await this.getWorker();
                     this.setProgress(20);
+                    // Run OCR on all regions
                     var fullResult = await worker.recognize(processedFull);
-                    this.setProgress(50);
+                    this.setProgress(40);
                     var fullText = fullResult.data.text;
-                    var mrzResult = await worker.recognize(processedMrz);
+                    var dataResult = await worker.recognize(processedData);
+                    this.setProgress(60);
+                    var dataText = dataResult.data.text;
+                    var lightResult = await worker.recognize(processedDataLight);
                     this.setProgress(75);
-                    var mrzText = mrzResult.data.text;
-                    var topResult = await worker.recognize(processedTop);
+                    var lightText = lightResult.data.text;
+                    var mrzResult = await worker.recognize(processedMrz);
                     this.setProgress(90);
-                    var topText = topResult.data.text;
+                    var mrzText = mrzResult.data.text;
+                    // Parse each region
                     var parsedFull = this.parsePassportText(fullText);
+                    var parsedData = this.parsePassportText(dataText);
+                    var parsedLight = this.parsePassportText(lightText);
                     var parsedMrz = this.parseMrz(mrzText);
-                    var parsedTop = this.parsePassportText(topText);
+                    // Smart merge: prefer text parser (better for ID cards), MRZ as fallback
                     var merged = {
-                        fullName: parsedTop.fullName || parsedFull.fullName || parsedMrz.fullName,
-                        dob: parsedMrz.dob || parsedFull.dob || parsedTop.dob,
-                        passport: parsedMrz.passport || parsedFull.passport,
-                        nationality: parsedMrz.nationality || parsedFull.nationality || parsedTop.nationality,
-                        gender: parsedMrz.gender || parsedFull.gender || parsedTop.gender,
+                        fullName: parsedData.fullName || parsedLight.fullName || parsedFull.fullName || parsedMrz.fullName,
+                        dob: parsedData.dob || parsedFull.dob || parsedLight.dob || parsedMrz.dob,
+                        passport: parsedData.passport || parsedFull.passport || parsedMrz.passport,
+                        nationality: parsedData.nationality || parsedFull.nationality || parsedMrz.nationality,
+                        gender: parsedData.gender || parsedFull.gender || parsedMrz.gender,
                         method: 'tesseract-v2',
                         rawOcr: fullText
                     };
