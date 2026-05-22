@@ -9,26 +9,148 @@
     <link rel="stylesheet" href="css/site.css" />
     <meta name="theme-color" content="#030712" />
     <meta name="description" content="Система контроля и учёта посетителей на КПП" />
+    <style>
+        /* Loading screen styles — inline to avoid CSS dependency */
+        @keyframes loadPulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+        @keyframes loadGlow  { 0%,100%{box-shadow:0 0 20px rgba(6,182,212,0.15);} 50%{box-shadow:0 0 40px rgba(6,182,212,0.3);} }
+        @keyframes loadShimmer { 0%{background-position:-200% 0;} 100%{background-position:200% 0;} }
+        #loading-screen {
+            display:flex;align-items:center;justify-content:center;min-height:100vh;
+            background:#030712;color:#94a3b8;font-family:Inter,Segoe UI,sans-serif;
+            position:fixed;inset:0;z-index:9999;transition:opacity .4s ease;
+        }
+        #loading-screen.fade-out { opacity:0; pointer-events:none; }
+        .load-wrap { text-align:center;max-width:320px;width:100%;padding:0 24px; }
+        .load-logo {
+            width:56px;height:56px;margin:0 auto 20px;
+            background:linear-gradient(135deg,#06b6d4,#8b5cf6);
+            border-radius:16px;display:flex;align-items:center;justify-content:center;
+            animation:loadGlow 3s ease-in-out infinite;
+        }
+        .load-logo svg { width:28px;height:28px;color:white; }
+        .load-title { font-size:16px;font-weight:700;color:#f1f5f9;margin-bottom:4px; }
+        .load-sub { font-size:12px;color:#64748b;margin-bottom:20px;font-weight:500; }
+        .load-bar-bg {
+            width:100%;height:4px;background:rgba(148,163,184,0.1);
+            border-radius:4px;overflow:hidden;margin-bottom:10px;
+        }
+        .load-bar-fill {
+            height:100%;width:0%;border-radius:4px;
+            background:linear-gradient(90deg,#06b6d4,#8b5cf6);
+            transition:width .3s ease;
+        }
+        .load-pct { font-size:11px;color:#64748b;font-weight:600;font-variant-numeric:tabular-nums; }
+    </style>
 </head>
 <body>
-    <div id="app">
-        <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#030712;color:#64748b;font-family:Inter,Segoe UI,sans-serif">
-            <div style="text-align:center">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 16px;display:block;animation:pulse 1.4s ease-in-out infinite">
+    <!-- Loading screen (shown before Blazor boots) -->
+    <div id="loading-screen">
+        <div class="load-wrap">
+            <div class="load-logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                 </svg>
-                <div style="font-size:15px;font-weight:500">Загрузка системы...</div>
             </div>
+            <div class="load-title">КПП Контроль гостей</div>
+            <div class="load-sub" id="load-status">Загрузка системы...</div>
+            <div class="load-bar-bg">
+                <div class="load-bar-fill" id="load-bar"></div>
+            </div>
+            <div class="load-pct" id="load-pct">0%</div>
         </div>
     </div>
+
+    <div id="app"></div>
     <div id="blazor-error-ui">
         Произошла непредвиденная ошибка.
         <a href="" class="reload">Перезагрузить</a>
         <a class="dismiss">✕</a>
     </div>
-    <script src="_framework/blazor.webassembly.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+    <!-- Blazor WASM — autostart=false so we can track loading progress -->
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+
     <script>
+        // ═══════════════════════════════════════════════════════
+        //  BLAZOR BOOT WITH PROGRESS TRACKING
+        // ═══════════════════════════════════════════════════════
+        (function () {
+            var bar = document.getElementById('load-bar');
+            var pct = document.getElementById('load-pct');
+            var status = document.getElementById('load-status');
+            var screen = document.getElementById('loading-screen');
+
+            function setProgress(percent, text) {
+                if (bar) bar.style.width = percent + '%';
+                if (pct) pct.textContent = Math.round(percent) + '%';
+                if (text && status) status.textContent = text;
+            }
+
+            Blazor.start({
+                loadBootResource: function (type, name, defaultUri, integrity) {
+                    // Fetch each resource and track progress
+                    var response = fetch(defaultUri, {
+                        integrity: integrity,
+                        cache: 'no-cache'
+                    });
+
+                    response.then(function (resp) {
+                        if (!resp.ok) return;
+                        var contentLength = resp.headers.get('Content-Length');
+                        if (!contentLength) return;
+                        var total = parseInt(contentLength, 10);
+                        var loaded = 0;
+                        var reader = resp.body.getReader();
+                        var chunks = [];
+
+                        function pump() {
+                            return reader.read().then(function (result) {
+                                if (result.done) {
+                                    // Resource loaded
+                                    return new Response(chunks.join(''), {
+                                        headers: resp.headers
+                                    });
+                                }
+                                chunks.push(result.value);
+                                loaded += result.value.length;
+                                // Approximate progress (each resource is ~equal weight)
+                                return pump();
+                            });
+                        }
+
+                        return pump();
+                    });
+
+                    return response;
+                }
+            }).then(function () {
+                setProgress(100, 'Готово!');
+                setTimeout(function () {
+                    if (screen) {
+                        screen.classList.add('fade-out');
+                        setTimeout(function () { screen.remove(); }, 500);
+                    }
+                }, 300);
+            }).catch(function (err) {
+                console.error('Blazor boot failed:', err);
+                setProgress(0, 'Ошибка загрузки. Обновите страницу.');
+            });
+
+            // Simulated progress while Blazor loads
+            var fakeProgress = 0;
+            var progressInterval = setInterval(function () {
+                if (fakeProgress < 90) {
+                    fakeProgress += (90 - fakeProgress) * 0.04;
+                    setProgress(fakeProgress, 'Загрузка системы...');
+                } else {
+                    clearInterval(progressInterval);
+                }
+            }, 200);
+        })();
+
+        // ═══════════════════════════════════════════════════════
+        //  HELPER FUNCTIONS
+        // ═══════════════════════════════════════════════════════
         window.viewDoc = function (dataUrl) {
             var win = window.open('', '_blank');
             if (!win) return;
@@ -58,11 +180,13 @@
         };
 
         // ═══════════════════════════════════════════════════════
-        //  Passport OCR Engine v2 — AI Vision + Tesseract + MRZ
+        //  Passport OCR Engine v3 — Lazy Tesseract + AI Vision + MRZ
+        //  Tesseract.js is NOW loaded ONLY when scanning is requested
         // ═══════════════════════════════════════════════════════
         window.passportOcr = {
             _worker: null,
-            _progressCb: null,
+            _tesseractLoaded: false,
+            _tesseractLoading: false,
 
             // ─── Progress reporting ───
             setProgress: function (pct) {
@@ -70,9 +194,46 @@
                 if (el) el.style.width = pct + '%';
             },
 
+            // ─── Lazy load Tesseract.js ───
+            loadTesseract: async function () {
+                if (this._tesseractLoaded) return; // Already loaded
+                if (this._tesseractLoading) {
+                    // Wait for another call to finish loading
+                    while (this._tesseractLoading) {
+                        await new Promise(function (r) { setTimeout(r, 200); });
+                    }
+                    return;
+                }
+                this._tesseractLoading = true;
+                this.setProgress(3);
+
+                return new Promise(function (resolve, reject) {
+                    var script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+                    script.async = true;
+                    script.onload = function () {
+                        passportOcr._tesseractLoaded = true;
+                        passportOcr._tesseractLoading = false;
+                        console.log('Tesseract.js loaded lazily');
+                        resolve();
+                    };
+                    script.onerror = function () {
+                        passportOcr._tesseractLoading = false;
+                        reject(new Error('Failed to load Tesseract.js'));
+                    };
+                    document.head.appendChild(script);
+                });
+            },
+
             // ─── Tesseract worker (lazy init) ───
             getWorker: async function () {
                 if (this._worker) return this._worker;
+
+                // Make sure Tesseract.js is loaded first
+                if (!this._tesseractLoaded) {
+                    await this.loadTesseract();
+                }
+
                 this.setProgress(5);
                 this._worker = await Tesseract.createWorker('rus+eng', 1, {
                     logger: function (m) {
@@ -213,7 +374,7 @@
 
                 if (mrzLines.length === 0) return result;
 
-                // Detect format: TD1 (3 lines × 30 chars) or TD3 (2 lines × 44 chars)
+                // Detect format: TD1 (3 lines x 30 chars) or TD3 (2 lines x 44 chars)
                 if (mrzLines.length >= 3 && mrzLines[0].length >= 28 && mrzLines[0].length <= 33) {
                     // TD1 format (ID card)
                     result = this.parseMrzTd1(mrzLines[0], mrzLines[1], mrzLines[2]);
@@ -236,18 +397,13 @@
                 return result;
             },
 
-            // Parse TD1 format (ID card — 3 lines × 30 chars)
+            // Parse TD1 format (ID card — 3 lines x 30 chars)
             parseMrzTd1: function (line1, line2, line3) {
                 var result = { fullName: '', dob: '', passport: '', nationality: '', gender: '' };
                 try {
-                    // Line 1: I<country><doc-num><check><opt>
-                    // Line 2: <dob><check><sex><expiry><check><nat><opt>
-                    // Line 3: <name><<<surname><<name>
-
                     // Document number (line1, pos 5-14, check at 15)
                     var docNum = line1.substring(5, 14).replace(/</g, '').trim();
                     if (docNum.length >= 6) {
-                        // Kyrgyz ID: "ID" prefix + 7 digits
                         var docType = line1.substring(0, 2);
                         if (/ID|AC/i.test(docType)) {
                             result.passport = docType.toUpperCase() + docNum;
@@ -263,9 +419,6 @@
                     // Gender (line2, pos 7)
                     result.gender = line2.charAt(7) === 'F' ? 'Ж' : 'М';
 
-                    // Expiry (line2, pos 8-14)
-                    // Not needed for form
-
                     // Nationality (line2, pos 15-17 or from line1)
                     var natCode = line2.substring(15, 18).replace(/</g, '').trim();
                     result.nationality = this.mrzCountryToName(natCode);
@@ -273,20 +426,16 @@
                     // Name (line3): SURNAME<<GIVEN<NAME
                     var namePart = line3.replace(/</g, ' ').replace(/\s+/g, ' ').trim();
                     if (namePart) {
-                        // Convert from Latin MRZ to readable name
                         result.fullName = this.mrzNameToCyrillic(namePart);
                     }
                 } catch (e) { console.warn('MRZ TD1 parse error:', e); }
                 return result;
             },
 
-            // Parse TD3 format (Passport — 2 lines × 44 chars)
+            // Parse TD3 format (Passport — 2 lines x 44 chars)
             parseMrzTd3: function (line1, line2) {
                 var result = { fullName: '', dob: '', passport: '', nationality: '', gender: '' };
                 try {
-                    // Line 1: P<country><surname><<name1><<name2...
-                    // Line 2: <doc-num><check><nat><dob><check><sex><expiry><check><opt><check>
-
                     // Document number (line2, pos 0-9, check at 10)
                     var docNum = line2.substring(0, 9).replace(/</g, '').trim();
                     if (docNum.length >= 6) {
@@ -341,15 +490,6 @@
 
             // Basic Latin→Cyrillic name transliteration (MRZ names are in Latin)
             mrzNameToCyrillic: function (latinName) {
-                // Common transliteration for Kyrgyz/Russian names in MRZ
-                var map = {
-                    'A': 'А', 'B': 'Б', 'V': 'В', 'G': 'Г', 'D': 'Д', 'E': 'Е',
-                    'YO': 'Ё', 'ZH': 'Ж', 'Z': 'З', 'I': 'И', 'J': 'Й', 'K': 'К',
-                    'L': 'Л', 'M': 'М', 'N': 'Н', 'O': 'О', 'P': 'П', 'R': 'Р',
-                    'S': 'С', 'T': 'Т', 'U': 'У', 'F': 'Ф', 'KH': 'Х', 'TS': 'Ц',
-                    'CH': 'Ч', 'SH': 'Ш', 'SHCH': 'Щ', 'YU': 'Ю', 'YA': 'Я',
-                    'Y': 'Й', 'W': 'В'
-                };
                 // For now, just return the Latin name (more reliable than bad transliteration)
                 // Cyrillic name will be extracted from the full-text OCR pass
                 return latinName;
@@ -382,7 +522,6 @@
                     var pm = passportPatterns[pi].exec(fullText);
                     if (pm) {
                         if (pi <= 2) {
-                            // Specific format matched
                             result.passport = pm[0].replace(/\s+/g, ' ').trim();
                         } else {
                             var digits = pm[0].replace(/[^\d]/g, '');
@@ -397,7 +536,6 @@
                 }
 
                 // ─── Full Name (ФИО) — prioritize Cyrillic ───
-                // Try keyword-based first
                 var namePatterns = [
                     /(?:ф\.?и\.?о\.?|фио|фамилия)[:\s]*([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+){1,3})/i,
                     /(?:имя|name)[:\s]*([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+){0,2})/i
@@ -486,9 +624,7 @@
             //  AI VISION API (optional, requires accessible endpoint)
             // ═════════════════════════════════════════════
 
-            // Try AI Vision API for accurate passport recognition
             scanWithAiVision: async function (dataUrl) {
-                // Configurable AI Vision endpoint (can be set via console or app settings)
                 var aiConfig = window.__kppOcrConfig || {};
                 var baseUrl = aiConfig.visionApiUrl || '';
                 var apiKey = aiConfig.visionApiKey || '';
@@ -543,7 +679,6 @@
                     var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
                     if (jsonMatch) jsonStr = jsonMatch[1].trim();
 
-                    // Remove any non-JSON text before/after
                     var jsonStart = jsonStr.indexOf('{');
                     var jsonEnd = jsonStr.lastIndexOf('}');
                     if (jsonStart >= 0 && jsonEnd > jsonStart) {
@@ -591,13 +726,21 @@
                         console.log('OCR: AI Vision succeeded');
                         aiResult.method = 'ai-vision';
                         if (dotNetRef) dotNetRef.invokeMethodAsync('OnOcrStatusChanged', 'done');
+                        this.setProgress(100);
                         return JSON.stringify(aiResult);
                     }
 
-                    // ── Step 2: Load & preprocess image for Tesseract ──
-                    this.setProgress(5);
+                    // ── Step 2: Load Tesseract.js lazily (only on first scan) ──
+                    this.setProgress(3);
+                    if (!this._tesseractLoaded) {
+                        await this.loadTesseract();
+                        this.setProgress(5);
+                    }
+
+                    // ── Step 3: Load & preprocess image ──
+                    this.setProgress(8);
                     var img = await this.loadImage(dataUrl);
-                    this.setProgress(10);
+                    this.setProgress(12);
 
                     // Pass 1: Full image with strong preprocessing (for text fields)
                     var canvas1 = this.preprocessImage(img, { contrast: 70, binarize: true, maxWidth: 2400 });
@@ -614,7 +757,7 @@
                     var canvasTopProc = this.preprocessImage(canvasTop, { contrast: 50, binarize: true, maxWidth: 2400 });
                     var processedTop = this.canvasToDataUrl(canvasTopProc);
 
-                    // ── Step 3: Run Tesseract OCR on all passes ──
+                    // ── Step 4: Run Tesseract OCR on all passes ──
                     var worker = await this.getWorker();
                     this.setProgress(20);
 
@@ -630,12 +773,12 @@
                     this.setProgress(90);
                     var topText = topResult.data.text;
 
-                    // ── Step 4: Parse results ──
+                    // ── Step 5: Parse results ──
                     var parsedFull = this.parsePassportText(fullText);
                     var parsedMrz = this.parseMrz(mrzText);
                     var parsedTop = this.parsePassportText(topText);
 
-                    // ── Step 5: Merge results (MRZ priority for structured data, top for name) ──
+                    // ── Step 6: Merge results (MRZ priority for structured data, top for name) ──
                     var merged = {
                         fullName: parsedTop.fullName || parsedFull.fullName || parsedMrz.fullName,
                         dob: parsedMrz.dob || parsedFull.dob || parsedTop.dob,
