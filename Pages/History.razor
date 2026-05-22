@@ -439,19 +439,32 @@
     void OnStateChanged()
     {
         // Apply filter from sidebar/dashboard navigation
-        if (!string.IsNullOrEmpty(State.HistoryFilter) && State.HistoryFilter != "all")
+        if (State.HistoryFilterPending)
         {
-            if (State.HistoryFilter == "today")
+            State.HistoryFilterPending = false;
+            if (State.HistoryFilter == "all")
+            {
+                // Clear all filters — show everything
+                status = "all";
+                dateFrom = dateTo = "";
+                search = "";
+            }
+            else if (State.HistoryFilter == "today")
             {
                 dateFrom = dateTo = DateTime.Today.ToString("yyyy-MM-dd");
                 status = "all";
             }
+            else if (State.HistoryFilter == "week")
+            {
+                dateFrom = DateTime.Today.AddDays(-6).ToString("yyyy-MM-dd");
+                dateTo = DateTime.Today.ToString("yyyy-MM-dd");
+                status = "all";
+            }
             else
-                       {
+            {
                 status = State.HistoryFilter;
                 dateFrom = dateTo = "";
             }
-            State.HistoryFilter = "all"; // reset after applying
             _ = LoadData();
         }
         StateHasChanged();

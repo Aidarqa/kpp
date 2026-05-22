@@ -26,10 +26,12 @@ public class AppState
     }
 
     public string HistoryFilter { get; set; } = "all";
+    public bool HistoryFilterPending { get; set; } = false;
 
     public void SetHistoryFilter(string filter)
     {
         HistoryFilter = filter;
+        HistoryFilterPending = true;
         NotifyStateChanged();
     }
 
@@ -38,6 +40,7 @@ public class AppState
         Auth = null;
         Stats = new SidebarStats();
         HistoryFilter = "all";
+        HistoryFilterPending = false;
         NotifyStateChanged();
     }
 
