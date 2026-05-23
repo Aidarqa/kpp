@@ -60,22 +60,22 @@ else
             @switch (State.CurrentView)
             {
                 case "dashboard":
-                    <Dashboard />
+                    <Dashboard @key="dashboard-view" />
                     break;
                 case "history":
-                    <History />
+                    <History @key="history-view" />
                     break;
                 case "register":
-                    <Register />
+                    <Register @key="register-view" />
                     break;
                 case "users":
-                    <Users />
+                    <Users @key="users-view" />
                     break;
                 case "roles":
-                    <Roles />
+                    <Roles @key="roles-view" />
                     break;
                 default:
-                    <Dashboard />
+                    <Dashboard @key="dashboard-view" />
                     break;
             }
         </main>

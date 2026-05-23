@@ -416,6 +416,7 @@
 
     string search = "", status = "all", dateFrom = "", dateTo = "";
     bool loading;
+    bool _isLoading;  // re-entrancy guard
     string loadErr = "";
     GuestListResponse? response;
     GuestItem? detailGuest;
@@ -467,7 +468,8 @@
             }
             _ = LoadData();
         }
-        StateHasChanged();
+        // Only re-render if NOT currently loading (prevents infinite loop)
+        if (!_isLoading) StateHasChanged();
     }
 
     public void Dispose()
@@ -478,15 +480,22 @@
 
     async Task LoadData()
     {
+        if (_isLoading) return;  // prevent re-entrant calls
+        _isLoading = true;
         loading = true; loadErr = "";
         StateHasChanged();
         try
         {
             response = await Api.GetGuestsAsync(search, status, dateFrom, dateTo);
-            await RefreshStats();
         }
         catch (Exception e) { loadErr = e.Message; }
-        finally { loading = false; }
+        finally
+        {
+            loading = false;
+            _isLoading = false;
+        }
+        // Update sidebar stats AFTER loading is done (won't cause loop)
+        await RefreshStats();
     }
 
     async Task Refresh() => await LoadData();
