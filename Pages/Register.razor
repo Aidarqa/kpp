@@ -76,7 +76,7 @@
     <div class="card" style="padding:20px">
 
         <!-- Блок 1: Основная информация -->
-        <div class="form-grid @(!isKpp ? "form-grid-3" : "")" style="margin-bottom:0">
+        <div class="form-grid form-grid-3" style="margin-bottom:0">
             <div class="form-group">
                 <label class="lbl">Цель визита</label>
                 <input class="input" placeholder="Напр.: Встреча с руководством"
@@ -87,13 +87,10 @@
                 <input class="input" placeholder="ФИО и должность"
                        @bind="host" @bind:event="oninput" />
             </div>
-            @if (!isKpp)
-            {
-                <div class="form-group">
-                    <label class="lbl">Плановая дата</label>
-                    <input class="input" type="date" @bind="plannedDate" />
-                </div>
-            }
+            <div class="form-group">
+                <label class="lbl">Плановая дата</label>
+                <input class="input" type="date" @bind="plannedDate" />
+            </div>
         </div>
 
         <!-- Блок 2: Транспорт -->
@@ -529,7 +526,7 @@
                         Host        = host,
                         CarBrand    = carBrand.NullIfEmpty(),
                         CarPlate    = carPlate.NullIfEmpty(),
-                        PlannedDate = isKpp ? null : plannedDate.ToString("yyyy-MM-dd"),
+                        PlannedDate = plannedDate.ToString("yyyy-MM-dd"),
                         GroupId     = groupId
                     }, author, isKpp);
                 }
@@ -549,7 +546,7 @@
                     CarPlate           = carPlate.NullIfEmpty(),
                     PassportScanBase64 = passportScanBase64,
                     PermitDocBase64    = permitDocBase64,
-                    PlannedDate        = isKpp ? null : plannedDate.ToString("yyyy-MM-dd")
+                    PlannedDate        = plannedDate.ToString("yyyy-MM-dd")
                 }, author, isKpp);
                 successCount = 1;
             }

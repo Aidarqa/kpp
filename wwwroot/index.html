@@ -599,7 +599,7 @@
             // ═══ AI VISION API — OpenRouter + Gemini ═══
 
             // Shared prompt for passport extraction
-            _ocrPrompt: 'Это фотография документа (паспорт или ID-карта КР). Извлеки данные в JSON формате с ключами: surname (фамилия), name (имя), patronymic (отчество), dob (дата рождения в формате ДД.ММ.ГГГГ), passport_series (серия документа), passport_number (номер документа), nationality (гражданство), gender (М или Ж). Если поле не видно — пиши null. ОТВЕТЬ ТОЛЬКО JSON, без пояснений и без markdown.',
+            _ocrPrompt: 'Это фотография документа (паспорт или ID-карта КР). Извлеки данные в JSON формате с ключами: surname (фамилия), name (имя), patronymic (отчество), dob (дата рождения в формате ДД.ММ.ГГГГ), passport_number (полный номер документа, включая серию, например "ID1234567" или "12 34 567890"), nationality (гражданство — коротко: КР, РФ, KZ и т.д.), gender (М или Ж). Не выделяй серию отдельно — пиши полный номер в passport_number. Если поле не видно — пиши null. ОТВЕТЬ ТОЛЬКО JSON, без пояснений и без markdown.',
 
             // Parse AI response JSON into result object
             _parseOcrJson: function(content) {
@@ -613,10 +613,26 @@
                 var result = {
                     fullName: [parsed.surname, parsed.name, parsed.patronymic].filter(Boolean).join(' '),
                     dob: parsed.dob || '',
-                    passport: [parsed.passport_series, parsed.passport_number].filter(Boolean).join(' '),
                     nationality: parsed.nationality || '',
                     gender: parsed.gender || ''
                 };
+                // Build passport field — avoid duplication between series and number
+                var series = (parsed.passport_series || '').toString().trim();
+                var number = (parsed.passport_number || '').toString().trim();
+                if (series && number) {
+                    // Check if number already contains the series (e.g. series="ID", number="ID1234567")
+                    if (number.toUpperCase().indexOf(series.toUpperCase()) === 0) {
+                        result.passport = number; // number already includes series
+                    } else {
+                        result.passport = series + ' ' + number;
+                    }
+                } else if (number) {
+                    result.passport = number;
+                } else if (series) {
+                    result.passport = series;
+                } else {
+                    result.passport = '';
+                }
                 // Normalize nationality
                 if (result.nationality) {
                     var nat = result.nationality.toUpperCase();
