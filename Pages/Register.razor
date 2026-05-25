@@ -79,12 +79,12 @@
         <!-- Блок 1: Основная информация -->
         <div class="form-grid form-grid-3" style="margin-bottom:0">
             <div class="form-group">
-                <label class="lbl">@Loc["register.purpose"]</label>
+                <label class="lbl @(purposeError ? "lbl-error" : "")">@Loc["register.purpose"]</label>
                 <input class="input @(purposeError ? "input-error" : "")" placeholder="Напр.: Встреча с руководством"
                        @bind="purpose" @bind:event="oninput" />
             </div>
             <div class="form-group">
-                <label class="lbl">@Loc["register.host"]</label>
+                <label class="lbl @(hostError ? "lbl-error" : "")">@Loc["register.host"]</label>
                 <input class="input @(hostError ? "input-error" : "")" placeholder="ФИО и должность"
                        @bind="host" @bind:event="oninput" />
             </div>
@@ -135,7 +135,7 @@
         {
             <div class="form-grid" style="margin-bottom:10px">
                 <div class="form-group">
-                    <label class="lbl">@Loc["register.fullName"] <span class="lbl-auto">авто</span></label>
+                    <label class="lbl @(nameError ? "lbl-error" : "")">@Loc["register.fullName"] <span class="lbl-auto">авто</span></label>
                     <input class="input @(nameError ? "input-error" : "")" placeholder="Фамилия Имя Отчество"
                            @bind="fullName" @bind:event="oninput" />
                 </div>
@@ -522,36 +522,43 @@
     {
         errMsg = "";
         purposeError = hostError = nameError = false;
+        var errors = new List<string>();
 
-        // Валидация обязательных полей
+        // Валидация обязательных полей — собираем ВСЕ ошибки сразу
         if (string.IsNullOrWhiteSpace(purpose))
         {
-            errMsg = "Укажите цель визита";
+            errors.Add(Loc["register.errPurpose"]);
             purposeError = true;
-            return;
         }
         if (string.IsNullOrWhiteSpace(host))
         {
-            errMsg = "Укажите принимающее лицо";
+            errors.Add(Loc["register.errHost"]);
             hostError = true;
-            return;
         }
-        if (groupMode && members.Any(m => string.IsNullOrWhiteSpace(m.FullName)))
+        if (groupMode)
         {
-            errMsg = "Введите ФИО для всех гостей";
-            return;
+            if (members.Any(m => string.IsNullOrWhiteSpace(m.FullName)))
+            {
+                errors.Add(Loc["register.errGuestName"]);
+            }
         }
-        if (!groupMode && string.IsNullOrWhiteSpace(fullName))
+        else if (string.IsNullOrWhiteSpace(fullName))
         {
-            errMsg = "Введите ФИО гостя";
+            errors.Add(Loc["register.errName"]);
             nameError = true;
+        }
+
+        // Если есть ошибки обязательных полей — подсвечиваем и показываем все
+        if (errors.Count > 0)
+        {
+            errMsg = string.Join(" · ", errors);
             return;
         }
 
         // Валидация формата даты рождения
         if (!IsValidDobFormat(dob))
         {
-            errMsg = "Некорректная дата рождения. Используйте формат ДД.ММ.ГГГГ";
+            errMsg = Loc["register.errDob"];
             return;
         }
 
@@ -561,7 +568,7 @@
             var words = fullName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             if (words.Length < 2)
             {
-                errMsg = "Введите хотя бы Фамилию и Имя";
+                errMsg = Loc["register.errFullName"];
                 nameError = true;
                 return;
             }
@@ -570,14 +577,14 @@
         // Валидация номера авто (если указан)
         if (!string.IsNullOrWhiteSpace(carPlate) && carPlate.Length < 4)
         {
-            errMsg = "Слишком короткий номер автомобиля";
+            errMsg = Loc["register.errCarPlate"];
             return;
         }
 
         // Валидация паспорта (если указан)
         if (!string.IsNullOrWhiteSpace(passport) && passport.Replace(" ", "").Length < 6)
         {
-            errMsg = "Номер паспорта должен содержать минимум 6 символов";
+            errMsg = Loc["register.errPassport"];
             return;
         }
 

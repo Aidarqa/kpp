@@ -1,19 +1,48 @@
         // ═══════════════════════════════════════════════════════
         //  HELPER FUNCTIONS
         // ═══════════════════════════════════════════════════════
+        // Просмотр документа в модалке поверх страницы (вместо новой вкладки)
         window.viewDoc = function (dataUrl) {
-            var win = window.open('', '_blank');
-            if (!win) return;
+            // Удаляем предыдущую модалку, если была
+            var old = document.getElementById('doc-modal');
+            if (old) old.remove();
+
             var isImg = dataUrl.startsWith('data:image');
-            win.document.write(
-                '<html><head><title>Документ</title></head>' +
-                '<body style="margin:0;background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh">' +
-                (isImg
-                    ? '<img src="' + dataUrl + '" style="max-width:100%;max-height:100vh;object-fit:contain"/>'
-                    : '<iframe src="' + dataUrl + '" style="width:100vw;height:100vh;border:none"></iframe>') +
-                '</body></html>'
-            );
+            var content = isImg
+                ? '<img src="' + dataUrl + '" />'
+                : '<iframe src="' + dataUrl + '"></iframe>';
+
+            var modal = document.createElement('div');
+            modal.id = 'doc-modal';
+            modal.className = 'doc-modal-bg';
+            modal.innerHTML =
+                '<div class="doc-modal-box">' +
+                    '<button class="doc-modal-close" onclick="closeDocModal()">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+                        'Закрыть' +
+                    '</button>' +
+                    content +
+                '</div>';
+
+            // Закрытие по клику на фон
+            modal.addEventListener('click', function (e) {
+                if (e.target === modal) closeDocModal();
+            });
+            // Закрытие по Escape
+            document.addEventListener('keydown', docModalEscHandler);
+
+            document.body.appendChild(modal);
         };
+
+        window.closeDocModal = function () {
+            var modal = document.getElementById('doc-modal');
+            if (modal) modal.remove();
+            document.removeEventListener('keydown', docModalEscHandler);
+        };
+
+        function docModalEscHandler(e) {
+            if (e.key === 'Escape') closeDocModal();
+        }
 
         window.requestNotificationPermission = async function () {
             if (!('Notification' in window)) return false;

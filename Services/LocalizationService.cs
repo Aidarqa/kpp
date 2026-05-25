@@ -124,6 +124,16 @@ public class LocalizationService
             ["register.ocrVerify"] = "Проверьте данные перед отправкой",
             ["register.ocrError"] = "Не удалось распознать паспорт. Заполните вручную.",
 
+            // Сообщения об ошибках валидации
+            ["register.errPurpose"]    = "Укажите цель визита",
+            ["register.errHost"]       = "Укажите принимающее лицо",
+            ["register.errName"]       = "Введите ФИО гостя",
+            ["register.errGuestName"]  = "Введите ФИО для всех гостей",
+            ["register.errDob"]        = "Некорректная дата рождения (ДД.ММ.ГГГГ)",
+            ["register.errFullName"]   = "Введите хотя бы Фамилию и Имя",
+            ["register.errCarPlate"]   = "Слишком короткий номер автомобиля",
+            ["register.errPassport"]   = "Номер паспорта — минимум 6 символов",
+
             // Пользователи
             ["users.title"] = "Пользователи",
             ["users.createUser"] = "Создать пользователя",
@@ -309,6 +319,16 @@ public class LocalizationService
             ["register.ocrVerify"] = "Жиберүүдөн мурун маалыматтарды текшериңиз",
             ["register.ocrError"] = "Паспорт таанылган жок. Кол менен толтуруңуз.",
 
+            // Валидация каталары
+            ["register.errPurpose"]    = "Визит максатын көрсөтүңүз",
+            ["register.errHost"]       = "Кабыл алуучу жакты көрсөтүңүз",
+            ["register.errName"]       = "Меймандын ФИО-су",
+            ["register.errGuestName"]  = "Бардык меемандар үчүн ФИО",
+            ["register.errDob"]        = "Туулган күнү так эмес (КК.АА.ЖЖЖЖ)",
+            ["register.errFullName"]   = "Фамилия жана Атын жазыңыз",
+            ["register.errCarPlate"]   = "Машина номуру бир топ кыска",
+            ["register.errPassport"]   = "Паспорт номуру — кеминде 6 белги",
+
             // Пользователи
             ["users.title"] = "Колдонуучулар",
             ["users.createUser"] = "Колдонуучу түзүү",
@@ -493,6 +513,16 @@ public class LocalizationService
             ["register.ocrFieldsOf4"] = "of 4 fields",
             ["register.ocrVerify"] = "Verify the data before submitting",
             ["register.ocrError"] = "Failed to recognize passport. Fill manually.",
+
+            // Validation error messages
+            ["register.errPurpose"]    = "Specify visit purpose",
+            ["register.errHost"]       = "Specify host person",
+            ["register.errName"]       = "Enter guest full name",
+            ["register.errGuestName"]  = "Enter full name for all guests",
+            ["register.errDob"]        = "Invalid date of birth (DD.MM.YYYY)",
+            ["register.errFullName"]   = "Enter at least Surname and Name",
+            ["register.errCarPlate"]   = "Car plate number is too short",
+            ["register.errPassport"]   = "Passport number must be at least 6 characters",
 
             // Users
             ["users.title"] = "Users",
