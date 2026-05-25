@@ -4,6 +4,7 @@
 @using System.Text.Json
 @inject ApiService Api
 @inject AppState State
+@inject LocalizationService Loc
 @inject IJSRuntime JS
 
 <div class="login-wrap">
@@ -14,16 +15,16 @@
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
         </div>
-        <span class="login-title">КПП — Контроль гостей</span>
-        <p class="login-sub">Система учёта посетителей</p>
+        <span class="login-title">@Loc["app.title"]</span>
+        <p class="login-sub">@Loc["app.subtitle"]</p>
 
         <div style="text-align:left;margin-bottom:16px">
-            <label class="lbl">Логин</label>
+            <label class="lbl">@Loc["lbl.login"]</label>
             <input class="field" placeholder="Введите логин" @bind="username" @bind:event="oninput"
                    style="margin-bottom:0" autocomplete="username" />
         </div>
         <div style="text-align:left;margin-bottom:24px">
-            <label class="lbl">Пароль</label>
+            <label class="lbl">@Loc["lbl.password"]</label>
             <input class="field" type="password" placeholder="Введите пароль"
                    @bind="password" @bind:event="oninput" @onkeydown="OnKeyDown"
                    style="margin-bottom:0" autocomplete="current-password" />
@@ -40,10 +41,10 @@
         <button class="btn-primary login-submit" @onclick="DoLogin" disabled="@loading">
             @if (loading) {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                <span>Вход...</span>
+                <span>@Loc["login.loggingIn"]</span>
             }
             else {
-                <span>Войти</span>
+                <span>@Loc["btn.login"]</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             }
         </button>
@@ -51,7 +52,7 @@
         <!-- Тестовые аккаунты -->
         <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:18px;text-align:left">
             <div style="color:var(--text-dim);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px">
-                Тестовые аккаунты
+                @Loc["login.testAccounts"]
             </div>
             @foreach (var (login, pwd, role, iconClass) in Accounts)
             {
@@ -93,7 +94,7 @@
     {
         errorMsg = "";
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-        { errorMsg = "Введите логин и пароль"; return; }
+        { errorMsg = Loc["login.enterCredentials"]; return; }
         loading = true;
         try
         {
@@ -107,11 +108,11 @@
                     State.RolesCache = await Api.GetRolesAsync();
                 State.Navigate(auth.CanViewHistory ? "history" : "register");
             }
-            else { errorMsg = "Неверный логин или пароль"; }
+            else { errorMsg = Loc["login.wrongCredentials"]; }
         }
         catch (Exception e)
         {
-            errorMsg = e.Message.Contains("403") ? "Аккаунт заблокирован" : "Неверный логин или пароль";
+            errorMsg = e.Message.Contains("403") ? Loc["login.accountBlocked"] : Loc["login.wrongCredentials"];
         }
         finally { loading = false; }
     }

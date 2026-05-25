@@ -406,12 +406,12 @@
 @code {
     record StatusFilter(string Val, string Lbl);
 
-    static readonly StatusFilter[] StatusFilters =
+    StatusFilter[] StatusFilters => new[]
     {
-        new(GuestStatus.All,      "Все"),
-        new(GuestStatus.Pending,  "Ожидается"),
-        new(GuestStatus.Inside,   "Внутри"),
-        new(GuestStatus.Exited,   "Вышел")
+        new(GuestStatus.All,      Loc["history.all"]),
+        new(GuestStatus.Pending,  Loc["history.pending"]),
+        new(GuestStatus.Inside,   Loc["history.inside"]),
+        new(GuestStatus.Exited,   Loc["history.exited"])
     };
 
     string search = "", status = GuestStatus.All, dateFrom = "", dateTo = "";
@@ -552,11 +552,11 @@
         _                   => "badge-pending"
     };
 
-    static string BadgeTxt(string s) => s switch
+    string BadgeTxt(string s) => s switch
     {
-        GuestStatus.Inside  => "Внутри",
-        GuestStatus.Exited  => "Вышел",
-        GuestStatus.Pending => "Ожидается",
+        GuestStatus.Inside  => Loc["history.inside"],
+        GuestStatus.Exited  => Loc["history.exited"],
+        GuestStatus.Pending => Loc["history.pending"],
         _                   => s
     };
 }

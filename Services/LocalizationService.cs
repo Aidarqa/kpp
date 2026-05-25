@@ -118,6 +118,11 @@ public class LocalizationService
             ["register.banner.admin"] = "Заявка создаётся со статусом «Ожидается».",
             ["register.banner.kpp"] = "Гость будет зарегистрирован со статусом «Внутри».",
             ["register.banner.user"] = "Ваша заявка будет передана на КПП.",
+            ["register.ocrScanning"] = "Распознавание паспорта...",
+            ["register.ocrDone"] = "Автозаполнено",
+            ["register.ocrFieldsOf4"] = "из 4 полей",
+            ["register.ocrVerify"] = "Проверьте данные перед отправкой",
+            ["register.ocrError"] = "Не удалось распознать паспорт. Заполните вручную.",
 
             // Пользователи
             ["users.title"] = "Пользователи",
@@ -133,6 +138,13 @@ public class LocalizationService
             ["users.password"] = "Пароль",
             ["users.newPassword"] = "Новый пароль",
             ["users.chooseRole"] = "— выберите —",
+            ["users.newUser"] = "Новый пользователь",
+            ["users.fillAll"] = "Заполните все поля",
+            ["users.loginTaken"] = "Логин уже занят",
+            ["users.userCreated"] = "Пользователь создан",
+            ["users.passwordChanged"] = "Пароль изменён",
+            ["users.statusChanged"] = "Статус изменён",
+            ["users.deleted"] = "Удалён",
 
             // Роли
             ["roles.title"] = "Роли и права",
@@ -150,6 +162,12 @@ public class LocalizationService
             ["roles.viewHistory"] = "Просматривать историю",
             ["roles.manageEntry"] = "Вход / Выход (КПП)",
             ["roles.systemNameHint"] = "Латиница, без пробелов",
+            ["roles.newRole"] = "Новая роль",
+            ["roles.fillFields"] = "Заполните поля",
+            ["roles.permissions"] = "Права доступа",
+            ["roles.roleCreated"] = "Роль создана",
+            ["roles.roleUpdated"] = "Роль обновлена",
+            ["roles.roleDeleted"] = "Роль удалена",
 
             // Тема
             ["theme.dark"] = "Тёмная тема",
@@ -162,6 +180,10 @@ public class LocalizationService
 
             // Тестовые аккаунты
             ["login.testAccounts"] = "Тестовые аккаунты",
+            ["login.enterCredentials"] = "Введите логин и пароль",
+            ["login.wrongCredentials"] = "Неверный логин или пароль",
+            ["login.accountBlocked"] = "Аккаунт заблокирован",
+            ["login.loggingIn"] = "Вход...",
 
             // Лог
             ["log.title"] = "Лог действий",
@@ -281,6 +303,11 @@ public class LocalizationService
             ["register.banner.admin"] = "Арыз «Күтүүдө» статусу менен түзүлөт.",
             ["register.banner.kpp"] = "Конок «Ичинде» статусу менен катталат.",
             ["register.banner.user"] = "Сиздин арыз КПП-га жөнөтүлөт.",
+            ["register.ocrScanning"] = "Паспорт таанытылууда...",
+            ["register.ocrDone"] = "Автотолтурулду",
+            ["register.ocrFieldsOf4"] = "4 талаадан",
+            ["register.ocrVerify"] = "Жиберүүдөн мурун маалыматтарды текшериңиз",
+            ["register.ocrError"] = "Паспорт таанылган жок. Кол менен толтуруңуз.",
 
             // Пользователи
             ["users.title"] = "Колдонуучулар",
@@ -296,6 +323,13 @@ public class LocalizationService
             ["users.password"] = "Сырсөз",
             ["users.newPassword"] = "Жаңы сырсөз",
             ["users.chooseRole"] = "— танданыз —",
+            ["users.newUser"] = "Жаңы колдонуучу",
+            ["users.fillAll"] = "Бардык талааларды толтуруңуз",
+            ["users.loginTaken"] = "Логин эле алынган",
+            ["users.userCreated"] = "Колдонуучу түзүлдү",
+            ["users.passwordChanged"] = "Сырсөз өзгөрдү",
+            ["users.statusChanged"] = "Статус өзгөрдү",
+            ["users.deleted"] = "Өчүрүлдү",
 
             // Роли
             ["roles.title"] = "Ролдор жана укуктар",
@@ -313,6 +347,12 @@ public class LocalizationService
             ["roles.viewHistory"] = "Тарыхты көрүү",
             ["roles.manageEntry"] = "Кириш / Чыгуу (КПП)",
             ["roles.systemNameHint"] = "Латынча, боштуксыз",
+            ["roles.newRole"] = "Жаңы роль",
+            ["roles.fillFields"] = "Талааларды толтуруңуз",
+            ["roles.permissions"] = "Укуктар",
+            ["roles.roleCreated"] = "Роль түзүлдү",
+            ["roles.roleUpdated"] = "Роль жаңыланды",
+            ["roles.roleDeleted"] = "Роль өчүрүлдү",
 
             // Тема
             ["theme.dark"] = "Караңгы тема",
@@ -325,6 +365,10 @@ public class LocalizationService
 
             // Тестовые аккаунты
             ["login.testAccounts"] = "Сынак аккаунттары",
+            ["login.enterCredentials"] = "Логин жана сырсөзду киргизиңиз",
+            ["login.wrongCredentials"] = "Туура эмес логин же сырсөз",
+            ["login.accountBlocked"] = "Аккаунт блокталды",
+            ["login.loggingIn"] = "Кирүү...",
 
             // Лог
             ["log.title"] = "Аракеттер логу",
@@ -444,6 +488,11 @@ public class LocalizationService
             ["register.banner.admin"] = "Request will be created with «Pending» status.",
             ["register.banner.kpp"] = "Guest will be registered with «Inside» status.",
             ["register.banner.user"] = "Your request will be forwarded to the checkpoint.",
+            ["register.ocrScanning"] = "Scanning passport...",
+            ["register.ocrDone"] = "Auto-filled",
+            ["register.ocrFieldsOf4"] = "of 4 fields",
+            ["register.ocrVerify"] = "Verify the data before submitting",
+            ["register.ocrError"] = "Failed to recognize passport. Fill manually.",
 
             // Users
             ["users.title"] = "Users",
@@ -459,6 +508,13 @@ public class LocalizationService
             ["users.password"] = "Password",
             ["users.newPassword"] = "New Password",
             ["users.chooseRole"] = "— select —",
+            ["users.newUser"] = "New User",
+            ["users.fillAll"] = "Fill all fields",
+            ["users.loginTaken"] = "Login already taken",
+            ["users.userCreated"] = "User created",
+            ["users.passwordChanged"] = "Password changed",
+            ["users.statusChanged"] = "Status changed",
+            ["users.deleted"] = "Deleted",
 
             // Roles
             ["roles.title"] = "Roles & Permissions",
@@ -476,6 +532,12 @@ public class LocalizationService
             ["roles.viewHistory"] = "View History",
             ["roles.manageEntry"] = "Entry / Exit (Checkpoint)",
             ["roles.systemNameHint"] = "Latin, no spaces",
+            ["roles.newRole"] = "New Role",
+            ["roles.fillFields"] = "Fill fields",
+            ["roles.permissions"] = "Permissions",
+            ["roles.roleCreated"] = "Role created",
+            ["roles.roleUpdated"] = "Role updated",
+            ["roles.roleDeleted"] = "Role deleted",
 
             // Theme
             ["theme.dark"] = "Dark Theme",
@@ -488,6 +550,10 @@ public class LocalizationService
 
             // Test Accounts
             ["login.testAccounts"] = "Test Accounts",
+            ["login.enterCredentials"] = "Enter login and password",
+            ["login.wrongCredentials"] = "Invalid login or password",
+            ["login.accountBlocked"] = "Account is blocked",
+            ["login.loggingIn"] = "Logging in...",
 
             // Log
             ["log.title"] = "Action Log",
