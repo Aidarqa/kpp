@@ -13,10 +13,4 @@ builder.Services.AddSingleton<AppState>();
 builder.Services.AddSingleton<ThemeService>();
 builder.Services.AddSingleton<LocalizationService>();
 
-// HttpClient остаётся для возможных внешних вызовов, но ApiService его не использует
-builder.Services.AddScoped(sp => new HttpClient
-{
-    BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
-});
-
 await builder.Build().RunAsync();

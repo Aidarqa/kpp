@@ -25,7 +25,7 @@ public class AppState
         NotifyStateChanged();
     }
 
-    public string HistoryFilter { get; set; } = "all";
+    public string HistoryFilter { get; set; } = GuestStatus.All;
     public bool HistoryFilterPending { get; set; } = false;
 
     public void SetHistoryFilter(string filter)
@@ -39,7 +39,7 @@ public class AppState
     {
         Auth = null;
         Stats = new SidebarStats();
-        HistoryFilter = "all";
+        HistoryFilter = GuestStatus.All;
         HistoryFilterPending = false;
         NotifyStateChanged();
     }

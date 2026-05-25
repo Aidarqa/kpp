@@ -40,7 +40,7 @@ public class ApiService
     }
 
     // ── Guests ────────────────────────────────────────
-    public Task<GuestListResponse> GetGuestsAsync(string search = "", string status = "all",
+    public Task<GuestListResponse> GetGuestsAsync(string search = "", string status = GuestStatus.All,
         string dateFrom = "", string dateTo = "")
     {
         return Task.FromResult(_store.QueryGuests(search, status, dateFrom, dateTo));
@@ -48,7 +48,7 @@ public class ApiService
 
     public Task<GuestItem?> GetGuestByIdAsync(int id)
     {
-        var list = _store.QueryGuests("", "all", "", "");
+        var list = _store.QueryGuests("", GuestStatus.All, "", "");
         return Task.FromResult(list.Items.FirstOrDefault(g => g.Id == id));
     }
 
@@ -65,7 +65,24 @@ public class ApiService
         => Task.FromResult(_store.GuestExit(guestId));
 
     public Task<bool> UpdateGuestAsync(GuestItem updated)
-        => Task.FromResult(false);
+    {
+        var req = new GuestCreateRequest
+        {
+            FullName = updated.FullName,
+            Passport = updated.Passport,
+            Dob = updated.Dob,
+            Nationality = updated.Nationality,
+            Purpose = updated.Purpose,
+            Host = updated.Host,
+            CarBrand = updated.CarBrand,
+            CarPlate = updated.CarPlate,
+            PlannedDate = updated.PlannedDate,
+            PassportScanBase64 = updated.PassportScanBase64,
+            PermitDocBase64 = updated.PermitDocBase64
+        };
+        var updatedBy = CurrentAuth?.Username ?? "system";
+        return Task.FromResult(_store.UpdateGuest(updated.Id, req, updatedBy));
+    }
 
     // ── Roles ──────────────────────────────────────────
     private Task<bool> SaveRoleInternal(RoleItem role)
@@ -142,6 +159,16 @@ public class ApiService
             CanManageEntry = false
         };
         return SaveRoleInternal(role);
+    }
+
+    /// <summary>
+    /// Обновляет только DisplayName и права роли (без изменения системного имени).
+    /// Используется при inline-редактировании в таблице ролей.
+    /// </summary>
+    public Task<bool> UpdateRoleDisplayNameAsync(int id, string displayName,
+        bool canCreate, bool canViewHistory, bool canManageEntry)
+    {
+        return Task.FromResult(_store.UpdateRole(id, displayName, canCreate, canViewHistory, canManageEntry));
     }
 
     public Task<List<RoleItem>> GetRolesAsync()

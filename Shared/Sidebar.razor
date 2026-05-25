@@ -1,5 +1,6 @@
 @namespace KppBlazor.Shared
 @using KppBlazor.Services
+@using KppBlazor.Models
 @inject AppState State
 @inject ThemeService Theme
 @inject LocalizationService Loc
@@ -125,7 +126,7 @@
             <div class="nav-section-label">@Loc["nav.stats"]</div>
         </div>
         <div class="sb-stats">
-            <button class="stat-card" @onclick='async () => await NavigateWithFilter("history", "inside")'>
+            <button class="stat-card" @onclick='async () => await NavigateWithFilter("history", GuestStatus.Inside)'>
                 <div class="stat-num" style="color:var(--accent-text)">@State.Stats.InsideCnt</div>
                 <div class="stat-lbl">@Loc["dashboard.inside"]</div>
             </button>
@@ -135,12 +136,12 @@
             </button>
             @if (State.Stats.PendingCnt > 0)
             {
-                <button class="stat-card" @onclick='async () => await NavigateWithFilter("history", "pending")'>
+                <button class="stat-card" @onclick='async () => await NavigateWithFilter("history", GuestStatus.Pending)'>
                     <div class="stat-num" style="color:var(--warn-text)">@State.Stats.PendingCnt</div>
                     <div class="stat-lbl">@Loc["dashboard.pending"]</div>
                 </button>
             }
-            <button class="stat-card" style="grid-column:@(State.Stats.PendingCnt > 0 ? "auto" : "span 2")" @onclick='async () => await NavigateWithFilter("history", "all")'>
+            <button class="stat-card" style="grid-column:@(State.Stats.PendingCnt > 0 ? "auto" : "span 2")" @onclick='async () => await NavigateWithFilter("history", GuestStatus.All)'>
                 <div class="stat-num" style="color:var(--text-muted)">@State.Stats.Total</div>
                 <div class="stat-lbl">@Loc["dashboard.total"]</div>
             </button>
@@ -175,7 +176,7 @@
 @code {
     [Parameter] public EventCallback OnClose { get; set; }
 
-    bool isAdmin => State.Auth?.RoleName == "admin";
+    bool isAdmin => State.Auth?.RoleName == RoleNames.Admin;
 
     protected override void OnInitialized()
     {

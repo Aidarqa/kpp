@@ -1,5 +1,21 @@
 namespace KppBlazor.Models;
 
+// ── Constants ────────────────────────────────────────
+public static class GuestStatus
+{
+    public const string Pending = "pending";
+    public const string Inside  = "inside";
+    public const string Exited  = "exited";
+    public const string All     = "all";
+}
+
+public static class RoleNames
+{
+    public const string Admin = "admin";
+    public const string KPP   = "kpp";
+    public const string User  = "user";
+}
+
 // ── AuthInfo ──────────────────────────────────────────
 public class AuthInfo
 {
@@ -35,6 +51,7 @@ public class UserItem
     public string RoleName { get; set; } = "";
     public string RoleDisplayName { get; set; } = "";
     public string PasswordHash { get; set; } = "";
+    public string PasswordSalt { get; set; } = "";
     public bool IsBlocked { get; set; }
     // Дополнительные флаги прав (дублируются из роли, но могут храниться здесь)
     public bool CanCreateRequest { get; set; }
@@ -55,7 +72,7 @@ public class GuestItem
     public string? Host { get; set; }
     public string? CarBrand { get; set; }
     public string? CarPlate { get; set; }
-    public string Status { get; set; } = "pending";
+    public string Status { get; set; } = GuestStatus.Pending;
     public string? EntryTime { get; set; }
     public string? ExitTime { get; set; }
     public string? PlannedDate { get; set; }

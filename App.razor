@@ -33,7 +33,7 @@
                 {
                     Api.SetAuth(auth);
                     State.SetAuth(auth);
-                    if (auth.RoleName == "admin")
+                    if (auth.RoleName == RoleNames.Admin)
                         State.RolesCache = await Api.GetRolesAsync();
                 }
             }

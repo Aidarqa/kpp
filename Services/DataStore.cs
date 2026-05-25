@@ -1,4 +1,4 @@
-﻿using KppBlazor.Models;
+using KppBlazor.Models;
 
 namespace KppBlazor.Services;
 
@@ -33,19 +33,19 @@ public class DataStore
         {
             new RoleItem
             {
-                Id = _roleSeq++, Name = "admin", DisplayName = "Администратор",
+                Id = _roleSeq++, Name = RoleNames.Admin, DisplayName = "Администратор",
                 CanCreateRequest = true, CanViewHistory = true, CanManageEntry = true,
                 IsSystem = true
             },
             new RoleItem
             {
-                Id = _roleSeq++, Name = "kpp", DisplayName = "Сотрудник КПП",
+                Id = _roleSeq++, Name = RoleNames.KPP, DisplayName = "Сотрудник КПП",
                 CanCreateRequest = true, CanViewHistory = true, CanManageEntry = true,
                 IsSystem = true
             },
             new RoleItem
             {
-                Id = _roleSeq++, Name = "user", DisplayName = "Пользователь",
+                Id = _roleSeq++, Name = RoleNames.User, DisplayName = "Пользователь",
                 CanCreateRequest = true, CanViewHistory = false, CanManageEntry = false,
                 IsSystem = false
             }
@@ -59,22 +59,25 @@ public class DataStore
         new UserItem
         {
             Id = _userSeq++, Username = "admin", DisplayName = "Администратор",
-            RoleName = "admin", RoleDisplayName = "Администратор", RoleId = 1,
-            PasswordHash = Hash("admin123"), CreatedAt = Iso(DateTime.UtcNow),
+            RoleName = RoleNames.Admin, RoleDisplayName = "Администратор", RoleId = 1,
+            PasswordHash = HashPassword("admin123", out var salt1),
+            PasswordSalt = salt1, CreatedAt = Iso(DateTime.UtcNow),
             CanCreateRequest = true, CanViewHistory = true, CanManageEntry = true
         },
         new UserItem
         {
             Id = _userSeq++, Username = "kpp", DisplayName = "Исанов КПП",
-            RoleName = "kpp", RoleDisplayName = "Сотрудник КПП", RoleId = 2,
-            PasswordHash = Hash("kpp123"), CreatedAt = Iso(DateTime.UtcNow),
+            RoleName = RoleNames.KPP, RoleDisplayName = "Сотрудник КПП", RoleId = 2,
+            PasswordHash = HashPassword("kpp123", out var salt2),
+            PasswordSalt = salt2, CreatedAt = Iso(DateTime.UtcNow),
             CanCreateRequest = true, CanViewHistory = true, CanManageEntry = true
         },
         new UserItem
         {
             Id = _userSeq++, Username = "it_user", DisplayName = "Исанов И.И.",
-            RoleName = "user", RoleDisplayName = "Пользователь", RoleId = 3,
-            PasswordHash = Hash("it123"), CreatedAt = Iso(DateTime.UtcNow),
+            RoleName = RoleNames.User, RoleDisplayName = "Пользователь", RoleId = 3,
+            PasswordHash = HashPassword("it123", out var salt3),
+            PasswordSalt = salt3, CreatedAt = Iso(DateTime.UtcNow),
             CanCreateRequest = true, CanViewHistory = false, CanManageEntry = false
         }
         });
@@ -90,16 +93,16 @@ public class DataStore
                 Id = _guestSeq++, FullName = "Асанов Тилек Петрович",
                 Passport = "4521 123456", Dob = "15.03.1985", Nationality = "КР",
                 Purpose = "Деловая встреча", Host = "Директор Алмазов Б.С.",
-                Status = "inside", EntryTime = Iso(now.AddHours(-1)),
+                Status = GuestStatus.Inside, EntryTime = Iso(now.AddHours(-1)),
                 EntryDt = now.AddHours(-1), PlannedDate = Iso(now),
-                CreatedBy = "kpp", HasPassportScan = true
+                CreatedBy = RoleNames.KPP, HasPassportScan = true
             },
             new GuestItem
             {
                 Id = _guestSeq++, FullName = "Камчыбекова Мариям Амановна",
                 Passport = "4522 654321", Dob = "20.07.1990", Nationality = "КР",
                 Purpose = "Собеседование", Host = "HR Отдел",
-                Status = "pending", PlannedDate = Iso(now.AddHours(2)),
+                Status = GuestStatus.Pending, PlannedDate = Iso(now.AddHours(2)),
                 CreatedBy = "it_user"
             },
             new GuestItem
@@ -107,10 +110,10 @@ public class DataStore
                 Id = _guestSeq++, FullName = "Ли Вэй",
                 Nationality = "КНР", Purpose = "Переговоры", Host = "Коммерческий директор",
                 CarBrand = "Toyota", CarPlate = "А123ВС77",
-                Status = "exited",
+                Status = GuestStatus.Exited,
                 EntryTime = Iso(now.AddHours(-3)), ExitTime = Iso(now.AddHours(-1)),
                 EntryDt = now.AddHours(-3), ExitDt = now.AddHours(-1),
-                CreatedBy = "admin", HasPermitDoc = true
+                CreatedBy = RoleNames.Admin, HasPermitDoc = true
             }
         });
 
@@ -163,11 +166,15 @@ public class DataStore
 
     public UserItem? GetByCredentials(string username, string password)
     {
-        var hash = Hash(password);
-        return _users.FirstOrDefault(u =>
+        var user = _users.FirstOrDefault(u =>
             u.Username.Equals(username, StringComparison.OrdinalIgnoreCase) &&
-            u.PasswordHash == hash &&
             !u.IsBlocked);
+
+        if (user is null) return null;
+
+        // Verify password with salt
+        var hash = HashPassword(password, user.PasswordSalt);
+        return hash == user.PasswordHash ? user : null;
     }
 
     public bool AddUser(string username, string password, string displayName, int roleId)
@@ -183,7 +190,8 @@ public class DataStore
             RoleId = roleId,
             RoleName = role?.Name ?? "",
             RoleDisplayName = role?.DisplayName ?? "",
-            PasswordHash = Hash(password),
+            PasswordHash = HashPassword(password, out var salt),
+            PasswordSalt = salt,
             CreatedAt = Iso(DateTime.UtcNow),
             CanCreateRequest = role?.CanCreateRequest ?? false,
             CanViewHistory   = role?.CanViewHistory   ?? false,
@@ -196,7 +204,10 @@ public class DataStore
     {
         var u = _users.FirstOrDefault(x => x.Id == id);
         if (u is null) return false;
-        if (newPassword is not null) u.PasswordHash = Hash(newPassword);
+        if (newPassword is not null)
+        {
+            u.PasswordHash = HashPassword(newPassword, u.PasswordSalt);
+        }
         if (isBlocked is not null) u.IsBlocked = isBlocked.Value;
         return true;
     }
@@ -214,7 +225,7 @@ public class DataStore
         string search, string status, string dateFrom, string dateTo)
     {
         // обновить длительность у тех, кто "inside"
-        foreach (var g in _guests.Where(g => g.Status == "inside"))
+        foreach (var g in _guests.Where(g => g.Status == GuestStatus.Inside))
             RefreshDuration(g);
 
         var q = _guests.AsEnumerable();
@@ -229,7 +240,7 @@ public class DataStore
                 g.Status.Contains(s, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (status != "all")
+        if (status != GuestStatus.All)
             q = q.Where(g => g.Status == status);
 
         if (DateTime.TryParse(dateFrom, out var df))
@@ -252,8 +263,8 @@ public class DataStore
             Summary = new GuestSummary
             {
                 TotalCount = list.Count,
-                CompletedCount = list.Count(g => g.Status == "exited"),
-                OngoingCount = list.Count(g => g.Status == "inside"),
+                CompletedCount = list.Count(g => g.Status == GuestStatus.Exited),
+                OngoingCount = list.Count(g => g.Status == GuestStatus.Inside),
                 TotalDurationFormatted = FmtMinutes((int)totalMin)
             }
         };
@@ -284,14 +295,14 @@ public class DataStore
 
         if (registerImmediately)
         {
-            g.Status = "inside";
+            g.Status = GuestStatus.Inside;
             g.EntryDt = now;
             g.EntryTime = Iso(now);
             AddAuditEntry("register", $"Гость зарегистрирован: {g.FullName}", createdBy, g.FullName);
         }
         else
         {
-            g.Status = "pending";
+            g.Status = GuestStatus.Pending;
             AddAuditEntry("create", $"Создана заявка: {g.FullName}", createdBy, g.FullName);
         }
 
@@ -302,9 +313,9 @@ public class DataStore
     public bool GuestEntry(int id)
     {
         var g = _guests.FirstOrDefault(x => x.Id == id);
-        if (g is null || g.Status != "pending") return false;
+        if (g is null || g.Status != GuestStatus.Pending) return false;
         var now = DateTime.UtcNow;
-        g.Status = "inside";
+        g.Status = GuestStatus.Inside;
         g.EntryDt = now;
         g.EntryTime = Iso(now);
         RefreshDuration(g);
@@ -315,13 +326,42 @@ public class DataStore
     public bool GuestExit(int id)
     {
         var g = _guests.FirstOrDefault(x => x.Id == id);
-        if (g is null || g.Status != "inside") return false;
+        if (g is null || g.Status != GuestStatus.Inside) return false;
         var now = DateTime.UtcNow;
-        g.Status = "exited";
+        g.Status = GuestStatus.Exited;
         g.ExitDt = now;
         g.ExitTime = Iso(now);
         RefreshDuration(g);
         AddAuditEntry("exit", $"Отмечен выезд: {g.FullName}", "system", g.FullName);
+        return true;
+    }
+
+    public bool UpdateGuest(int id, GuestCreateRequest updates, string updatedBy)
+    {
+        var g = _guests.FirstOrDefault(x => x.Id == id);
+        if (g is null) return false;
+
+        if (!string.IsNullOrWhiteSpace(updates.FullName)) g.FullName = updates.FullName;
+        if (updates.Passport != null) g.Passport = updates.Passport;
+        if (updates.Dob != null) g.Dob = updates.Dob;
+        if (updates.Nationality != null) g.Nationality = updates.Nationality;
+        if (!string.IsNullOrWhiteSpace(updates.Purpose)) g.Purpose = updates.Purpose;
+        if (!string.IsNullOrWhiteSpace(updates.Host)) g.Host = updates.Host;
+        if (updates.CarBrand != null) g.CarBrand = updates.CarBrand;
+        if (updates.CarPlate != null) g.CarPlate = updates.CarPlate;
+        if (updates.PlannedDate != null) g.PlannedDate = updates.PlannedDate;
+        if (updates.PassportScanBase64 != null)
+        {
+            g.PassportScanBase64 = updates.PassportScanBase64;
+            g.HasPassportScan = true;
+        }
+        if (updates.PermitDocBase64 != null)
+        {
+            g.PermitDocBase64 = updates.PermitDocBase64;
+            g.HasPermitDoc = true;
+        }
+
+        AddAuditEntry("update", $"Обновлены данные гостя: {g.FullName}", updatedBy, g.FullName);
         return true;
     }
 
@@ -343,11 +383,48 @@ public class DataStore
     private static DateTime? ParseIso(string? s) =>
         DateTime.TryParse(s, out var dt) ? dt : null;
 
-    public static string Hash(string password)
+    /// <summary>
+    /// Генерирует соль и хеширует пароль с использованием SHA-256.
+    /// Возвращает хеш в виде hex-строки. Соль записывается в out-параметр.
+    /// </summary>
+    public static string HashPassword(string password, out string salt)
+    {
+        salt = GenerateSalt();
+        return HashWithSalt(password, salt);
+    }
+
+    /// <summary>
+    /// Хеширует пароль с использованием существующей соли.
+    /// Используется при проверке пароля.
+    /// </summary>
+    public static string HashPassword(string password, string existingSalt)
+    {
+        return HashWithSalt(password, existingSalt);
+    }
+
+    /// <summary>
+    /// Генерирует случайную соль (16 байт в hex).
+    /// </summary>
+    private static string GenerateSalt()
+    {
+        var saltBytes = new byte[16];
+        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+        rng.GetBytes(saltBytes);
+        return Convert.ToHexString(saltBytes);
+    }
+
+    /// <summary>
+    /// SHA-256(salt_bytes + password_bytes) — prevents rainbow table attacks.
+    /// </summary>
+    private static string HashWithSalt(string password, string salt)
     {
         using var sha = System.Security.Cryptography.SHA256.Create();
-        var bytes = System.Text.Encoding.UTF8.GetBytes(password);
-        return Convert.ToHexString(sha.ComputeHash(bytes));
+        var saltBytes = Convert.FromHexString(salt);
+        var passBytes = System.Text.Encoding.UTF8.GetBytes(password);
+        var combined = new byte[saltBytes.Length + passBytes.Length];
+        Buffer.BlockCopy(saltBytes, 0, combined, 0, saltBytes.Length);
+        Buffer.BlockCopy(passBytes, 0, combined, saltBytes.Length, passBytes.Length);
+        return Convert.ToHexString(sha.ComputeHash(combined));
     }
 
     // ── Audit Log ────────────────────────────────────────
@@ -375,8 +452,8 @@ public class DataStore
         var weekAgo = today.AddDays(-6);
 
         var allGuests = _guests;
-        var insideCount = allGuests.Count(g => g.Status == "inside");
-        var pendingCount = allGuests.Count(g => g.Status == "pending");
+        var insideCount = allGuests.Count(g => g.Status == GuestStatus.Inside);
+        var pendingCount = allGuests.Count(g => g.Status == GuestStatus.Pending);
 
         // Сегодня
         var todayGuests = allGuests.Where(g =>

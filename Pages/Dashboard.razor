@@ -35,7 +35,7 @@
     {
         <!-- Stats Cards -->
         <div class="dash-cards">
-            <button class="dash-card dash-card-accent" @onclick='() => GoToHistory("inside")'>
+            <button class="dash-card dash-card-accent" @onclick='() => GoToHistory(GuestStatus.Inside)'>
                 <div class="dash-card-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
@@ -63,7 +63,7 @@
                 <div class="dash-card-val">@stats.WeekCount</div>
                 <div class="dash-card-lbl">@Loc["dashboard.week"]</div>
             </button>
-            <button class="dash-card dash-card-warn" @onclick='() => GoToHistory("pending")'>
+            <button class="dash-card dash-card-warn" @onclick='() => GoToHistory(GuestStatus.Pending)'>
                 <div class="dash-card-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
@@ -216,7 +216,7 @@
     int _prevPendingCount = 0;
 
     bool canManage => State.Auth?.CanManageEntry == true;
-    bool isAdmin => State.Auth?.RoleName == "admin";
+    bool isAdmin => State.Auth?.RoleName == RoleNames.Admin;
 
     protected override async Task OnInitializedAsync()
     {
@@ -239,7 +239,7 @@
         {
             stats = await Api.GetDashboardStatsAsync();
             var allGuests = await Api.GetGuestsAsync();
-            pendingGuests = allGuests.Items.Where(g => g.Status == "pending").ToList();
+            pendingGuests = allGuests.Items.Where(g => g.Status == GuestStatus.Pending).ToList();
             auditLog = await Api.GetAuditLogAsync(20);
 
             // Push notification when new pending guests appear

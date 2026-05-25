@@ -79,12 +79,12 @@
         <div class="form-grid form-grid-3" style="margin-bottom:0">
             <div class="form-group">
                 <label class="lbl">Цель визита</label>
-                <input class="input" placeholder="Напр.: Встреча с руководством"
+                <input class="input @(purposeError ? "input-error" : "")" placeholder="Напр.: Встреча с руководством"
                        @bind="purpose" @bind:event="oninput" />
             </div>
             <div class="form-group">
                 <label class="lbl">Принимающее лицо</label>
-                <input class="input" placeholder="ФИО и должность"
+                <input class="input @(hostError ? "input-error" : "")" placeholder="ФИО и должность"
                        @bind="host" @bind:event="oninput" />
             </div>
             <div class="form-group">
@@ -135,7 +135,7 @@
             <div class="form-grid" style="margin-bottom:10px">
                 <div class="form-group">
                     <label class="lbl">ФИО <span class="lbl-auto">авто</span></label>
-                    <input class="input" placeholder="Фамилия Имя Отчество"
+                    <input class="input @(nameError ? "input-error" : "")" placeholder="Фамилия Имя Отчество"
                            @bind="fullName" @bind:event="oninput" />
                 </div>
                 <div class="form-group">
@@ -285,7 +285,7 @@
 }
 
 @code {
-    bool isAdmin => State.Auth?.RoleName == "admin";
+    bool isAdmin => State.Auth?.RoleName == RoleNames.Admin;
     bool isKpp => State.Auth?.CanManageEntry == true && !isAdmin;
 
     string purpose = "", host = "", carBrand = "", carPlate = "",
@@ -297,6 +297,11 @@
     int successCount = 1;
     string errMsg = "", scanMsg = "", scanMsgColor = "var(--accent-text)";
     List<MemberForm> members = new() { new MemberForm() };
+
+    // Validation state
+    bool purposeError = false;
+    bool hostError = false;
+    bool nameError = false;
 
     // OCR state
     string ocrStatus = "";  // "", "scanning", "done", "error"
@@ -326,6 +331,7 @@
         groupMode = false;
         members = new() { new MemberForm() };
         errMsg = scanMsg = "";
+        purposeError = hostError = nameError = false;
         ocrStatus = "";
         ocrFieldsFilled = 0;
         ocrMethod = "";
@@ -335,6 +341,7 @@
     {
         groupMode = grp;
         if (grp) { fullName = ""; dob = ""; passport = ""; nationality = ""; }
+        nameError = false;
         StateHasChanged();
     }
     void AddMember() => members.Add(new MemberForm());
@@ -404,7 +411,7 @@
             if (root.TryGetProperty("fullName", out var fn))
             {
                 var v = fn.GetString() ?? "";
-                if (!string.IsNullOrWhiteSpace(v)) { fullName = v; filled++; }
+                if (!string.IsNullOrWhiteSpace(v)) { fullName = v; nameError = false; filled++; }
             }
             if (root.TryGetProperty("dob", out var db))
             {
@@ -497,15 +504,81 @@
         return r;
     }
 
+    /// <summary>Проверяет корректность формата даты рождения ДД.ММ.ГГГГ.</summary>
+    static bool IsValidDobFormat(string dob)
+    {
+        if (string.IsNullOrWhiteSpace(dob)) return true; // необязательное поле
+        // Допускаем частичный ввод
+        var digits = new string(dob.Where(char.IsDigit).ToArray());
+        if (digits.Length != 8) return true; // ещё вводится
+        // Полная дата — проверим валидность
+        if (DateTime.TryParseExact(dob, "dd.MM.yyyy", null, System.Globalization.DateTimeStyles.None, out var dt))
+            return dt.Year >= 1900 && dt <= DateTime.Today;
+        return false;
+    }
+
     async Task Submit()
     {
         errMsg = "";
-        if (string.IsNullOrWhiteSpace(purpose)) { errMsg = "Укажите цель визита"; return; }
-        if (string.IsNullOrWhiteSpace(host))    { errMsg = "Укажите принимающее лицо"; return; }
+        purposeError = hostError = nameError = false;
+
+        // Валидация обязательных полей
+        if (string.IsNullOrWhiteSpace(purpose))
+        {
+            errMsg = "Укажите цель визита";
+            purposeError = true;
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            errMsg = "Укажите принимающее лицо";
+            hostError = true;
+            return;
+        }
         if (groupMode && members.Any(m => string.IsNullOrWhiteSpace(m.FullName)))
-            { errMsg = "Введите ФИО для всех гостей"; return; }
+        {
+            errMsg = "Введите ФИО для всех гостей";
+            return;
+        }
         if (!groupMode && string.IsNullOrWhiteSpace(fullName))
-            { errMsg = "Введите ФИО"; return; }
+        {
+            errMsg = "Введите ФИО гостя";
+            nameError = true;
+            return;
+        }
+
+        // Валидация формата даты рождения
+        if (!IsValidDobFormat(dob))
+        {
+            errMsg = "Некорректная дата рождения. Используйте формат ДД.ММ.ГГГГ";
+            return;
+        }
+
+        // Валидация длины ФИО (минимум 2 слова для "Фамилия Имя")
+        if (!groupMode && !string.IsNullOrWhiteSpace(fullName))
+        {
+            var words = fullName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length < 2)
+            {
+                errMsg = "Введите хотя бы Фамилию и Имя";
+                nameError = true;
+                return;
+            }
+        }
+
+        // Валидация номера авто (если указан)
+        if (!string.IsNullOrWhiteSpace(carPlate) && carPlate.Length < 4)
+        {
+            errMsg = "Слишком короткий номер автомобиля";
+            return;
+        }
+
+        // Валидация паспорта (если указан)
+        if (!string.IsNullOrWhiteSpace(passport) && passport.Replace(" ", "").Length < 6)
+        {
+            errMsg = "Номер паспорта должен содержать минимум 6 символов";
+            return;
+        }
 
         submitting = true;
         var groupId = groupMode ? "G" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : null;

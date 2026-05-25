@@ -285,7 +285,9 @@
     {
         try
         {
-            await Api.UpdateRoleAsync(
+            // Используем UpdateRoleDisplayNameAsync — только DisplayName и права,
+            // не перезаписываем системное имя роли
+            await Api.UpdateRoleDisplayNameAsync(
                 id, editDisplayName,
                 edit_perms["canCreateRequest"],
                 edit_perms["canViewHistory"],

@@ -98,7 +98,7 @@
                                             Пароль
                                         </button>
                                     }
-                                    @if (u.RoleName != "admin")
+                                    @if (u.RoleName != RoleNames.Admin)
                                     {
                                         <button class="btn-sm @(u.IsBlocked ? "btn-sm-green" : "btn-sm-red")"
                                                 @onclick="() => ToggleBlock(u)">
@@ -150,7 +150,7 @@
                     <label class="lbl">Роль</label>
                     <select class="input" @bind="cf_roleId">
                         <option value="0">— выберите —</option>
-                        @foreach (var r in State.RolesCache.Where(r => r.Name != "admin"))
+                        @foreach (var r in State.RolesCache.Where(r => r.Name != RoleNames.Admin))
                         {
                             <option value="@r.Id">@r.DisplayName</option>
                         }
