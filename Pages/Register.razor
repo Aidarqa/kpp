@@ -427,7 +427,7 @@
             if (root.TryGetProperty("gender", out var gen))
             {
                 var v = gen.GetString() ?? "";
-                if (!string.IsNullOrWhiteSpace(v)) { gender = v; filled++; }
+                if (!string.IsNullOrWhiteSpace(v)) { filled++; }
             }
 
             // Track which method was used
