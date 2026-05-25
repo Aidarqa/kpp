@@ -186,16 +186,39 @@
         };
 
         // ═══════════════════════════════════════════════════════
-        //  Passport OCR Engine v3 — Google Gemini AI + Tesseract + MRZ
-        //  Gemini AI is tried first (fast & accurate)
-        //  Tesseract.js is loaded ONLY as fallback
+        //  Passport OCR Engine v4 — OpenRouter AI + Gemini + Tesseract
+        //  OpenRouter AI (Gemma 3) is tried first (works from KG!)
+        //  Gemini AI is tried second (needs US/EU account)
+        //  Tesseract.js is loaded ONLY as last fallback
         // ═══════════════════════════════════════════════════════
 
-        // ── AI Vision Configuration (Google Gemini) ──
+        // ── AI Vision Configuration ──
+        // Keys are loaded from secrets.json (not in git) for security
+        // Create wwwroot/secrets.json with your keys — see secrets.example.json
         window.__kppOcrConfig = {
-            visionApiKey: 'AIzaSyB3ibH256I5a1EmGYN1gXfAcM3unk2-5XY',
-            visionModel: 'gemini-2.0-flash'
+            openRouterKey: '',
+            openRouterModels: [
+                'google/gemma-3-12b-it',       // $0.00002/scan, good vision
+                'google/gemma-3-27b-it',        // $0.00003/scan, better accuracy
+                'google/gemma-4-26b-a4b-it:free' // free but may be rate limited
+            ],
+            visionApiKey: '',
+            visionModels: ['gemini-2.0-flash-lite', 'gemini-2.0-flash'],
+            proxyUrl: 'https://kpp-gemini-proxy.qaidarq1307.workers.dev'
         };
+
+        // Load API keys from secrets.json at startup
+        (function() {
+            fetch('/kpp/secrets.json')
+                .then(function(r) { return r.json(); })
+                .then(function(cfg) {
+                    if (cfg.openRouterKey) window.__kppOcrConfig.openRouterKey = cfg.openRouterKey;
+                    if (cfg.visionApiKey) window.__kppOcrConfig.visionApiKey = cfg.visionApiKey;
+                    if (cfg.proxyUrl) window.__kppOcrConfig.proxyUrl = cfg.proxyUrl;
+                    console.log('AI Vision: secrets loaded');
+                })
+                .catch(function() { console.log('AI Vision: no secrets.json found, using defaults'); });
+        })();
 
         window.passportOcr = {
             _worker: null,
@@ -573,76 +596,183 @@
                 return result;
             },
 
-            // ═══ AI VISION API (Google Gemini) ═══
+            // ═══ AI VISION API — OpenRouter + Gemini ═══
 
-            scanWithAiVision: async function (dataUrl) {
+            // Shared prompt for passport extraction
+            _ocrPrompt: 'Это фотография документа (паспорт или ID-карта КР). Извлеки данные в JSON формате с ключами: surname (фамилия), name (имя), patronymic (отчество), dob (дата рождения в формате ДД.ММ.ГГГГ), passport_series (серия документа), passport_number (номер документа), nationality (гражданство), gender (М или Ж). Если поле не видно — пиши null. ОТВЕТЬ ТОЛЬКО JSON, без пояснений и без markdown.',
+
+            // Parse AI response JSON into result object
+            _parseOcrJson: function(content) {
+                var jsonStr = content;
+                var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+                if (jsonMatch) jsonStr = jsonMatch[1].trim();
+                var jsonStart = jsonStr.indexOf('{');
+                var jsonEnd = jsonStr.lastIndexOf('}');
+                if (jsonStart >= 0 && jsonEnd > jsonStart) jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
+                var parsed = JSON.parse(jsonStr);
+                var result = {
+                    fullName: [parsed.surname, parsed.name, parsed.patronymic].filter(Boolean).join(' '),
+                    dob: parsed.dob || '',
+                    passport: [parsed.passport_series, parsed.passport_number].filter(Boolean).join(' '),
+                    nationality: parsed.nationality || '',
+                    gender: parsed.gender || ''
+                };
+                // Normalize nationality
+                if (result.nationality) {
+                    var nat = result.nationality.toUpperCase();
+                    if (nat.indexOf('КЫРГЫЗ') >= 0 || nat.indexOf('KGZ') >= 0 || nat === 'KG' || nat === 'KYRGYZ') result.nationality = 'КР';
+                    if (nat.indexOf('РОССИ') >= 0 || nat.indexOf('RUS') >= 0 || nat === 'RU' || nat === 'RUSSIAN') result.nationality = 'РФ';
+                    if (nat.indexOf('КАЗАХ') >= 0 || nat === 'KAZ' || nat === 'KAZAKH') result.nationality = 'KZ';
+                    if (nat.indexOf('УЗБЕК') >= 0 || nat === 'UZB' || nat === 'UZBEK') result.nationality = 'UZ';
+                    if (nat.indexOf('ТАДЖИК') >= 0 || nat === 'TJK' || nat === 'TAJIK') result.nationality = 'TJ';
+                }
+                return result;
+            },
+
+            // ── OpenRouter API (works from KG, no VPN needed) ──
+            scanWithOpenRouter: async function(dataUrl, base64Data, mimeType) {
+                var aiConfig = window.__kppOcrConfig || {};
+                var apiKey = aiConfig.openRouterKey || '';
+                if (!apiKey) { console.log('AI Vision: no OpenRouter key, skipping'); return null; }
+                var models = aiConfig.openRouterModels || ['google/gemini-2.0-flash-exp:free'];
+
+                for (var m = 0; m < models.length; m++) {
+                    var model = models[m];
+                    try {
+                        console.log('AI Vision: trying OpenRouter model', model);
+                        var body = {
+                            model: model,
+                            messages: [{
+                                role: 'user',
+                                content: [
+                                    { type: 'text', text: this._ocrPrompt },
+                                    { type: 'image_url', image_url: { url: 'data:' + mimeType + ';base64,' + base64Data } }
+                                ]
+                            }],
+                            temperature: 0.1,
+                            max_tokens: 512
+                        };
+                        var response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer ' + apiKey
+                            },
+                            body: JSON.stringify(body)
+                        });
+                        if (!response.ok) {
+                            var errText = await response.text();
+                            console.warn('AI Vision: OpenRouter', model, 'error', response.status);
+                            if (response.status === 429) continue; // try next model
+                            continue;
+                        }
+                        var data = await response.json();
+                        var content = '';
+                        if (data.choices && data.choices[0] && data.choices[0].message) {
+                            content = data.choices[0].message.content || '';
+                        }
+                        if (!content) {
+                            console.warn('AI Vision: OpenRouter', model, 'empty response');
+                            continue;
+                        }
+                        console.log('AI Vision: OpenRouter', model, 'succeeded!', content);
+                        var result = this._parseOcrJson(content);
+                        result.aiModel = 'openrouter/' + model;
+                        return result;
+                    } catch (err) {
+                        console.warn('AI Vision: OpenRouter', model, 'exception:', err.message);
+                        continue;
+                    }
+                }
+                console.warn('AI Vision: all OpenRouter models failed');
+                return null;
+            },
+
+            // ── Google Gemini API (backup, requires proxy for KG) ──
+            scanWithGemini: async function(dataUrl, base64Data, mimeType) {
                 var aiConfig = window.__kppOcrConfig || {};
                 var apiKey = aiConfig.visionApiKey || '';
-                if (!apiKey) { console.log('AI Vision: no API key configured, skipping'); return null; }
-                var model = aiConfig.visionModel || 'gemini-2.0-flash';
-                try {
-                    var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
-                    // Extract base64 data and mime type from dataUrl
-                    var mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
-                    var mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-                    var base64Data = dataUrl.replace(/^data:[^;]+;base64,/, '');
-                    var prompt = 'Это фотография документа (паспорт или ID-карта). Извлеки данные в JSON формате с ключами: surname (фамилия), name (имя), patronymic (отчество), dob (дата рождения в формате ДД.ММ.ГГГГ), passport_series (серия документа), passport_number (номер документа), nationality (гражданство), gender (М или Ж). Если поле не видно — пиши null. ОТВЕТЬ ТОЛЬКО JSON, без пояснений и без markdown.';
-                    var body = {
-                        contents: [{
-                            parts: [
-                                { text: prompt },
-                                { inline_data: { mime_type: mimeType, data: base64Data } }
-                            ]
-                        }],
-                        generationConfig: {
-                            temperature: 0.1,
-                            maxOutputTokens: 512
+                if (!apiKey) { console.log('AI Vision: no Gemini key, skipping'); return null; }
+                var models = aiConfig.visionModels || ['gemini-2.0-flash-lite'];
+                var proxyUrl = aiConfig.proxyUrl || '';
+
+                var geminiBody = {
+                    contents: [{
+                        parts: [
+                            { text: this._ocrPrompt },
+                            { inline_data: { mime_type: mimeType, data: base64Data } }
+                        ]
+                    }],
+                    generationConfig: { temperature: 0.1, maxOutputTokens: 512 }
+                };
+
+                for (var m = 0; m < models.length; m++) {
+                    var model = models[m];
+                    var directUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+                    var url = proxyUrl ? proxyUrl + '?model=' + encodeURIComponent(model) : directUrl;
+                    try {
+                        console.log('AI Vision: trying Gemini', model, proxyUrl ? '(proxy)' : '(direct)');
+                        var fetchOpts = {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(geminiBody)
+                        };
+                        if (proxyUrl) fetchOpts.headers['X-Goog-Api-Key'] = apiKey;
+                        var response = await fetch(url, fetchOpts);
+
+                        // Handle 429 — skip if zero quota
+                        if (response.status === 429) {
+                            var errText = await response.text();
+                            if (errText.indexOf('limit: 0') >= 0 || errText.indexOf('"limit":0') >= 0) {
+                                console.warn('AI Vision: Gemini', model, 'zero quota, skipping');
+                                continue;
+                            }
+                            console.warn('AI Vision: Gemini', model, 'rate limited, skipping');
+                            continue;
                         }
-                    };
-                    var response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    if (!response.ok) {
-                        var errText = await response.text();
-                        throw new Error('Gemini API ' + response.status + ': ' + errText);
+                        if (!response.ok) {
+                            console.warn('AI Vision: Gemini', model, 'error', response.status);
+                            continue;
+                        }
+                        var data = await response.json();
+                        var content = '';
+                        if (data.candidates && data.candidates[0] && data.candidates[0].content &&
+                            data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+                            content = data.candidates[0].content.parts[0].text || '';
+                        }
+                        if (!content) { console.warn('AI Vision: Gemini', model, 'empty response'); continue; }
+                        console.log('AI Vision: Gemini', model, 'succeeded!', content);
+                        var result = this._parseOcrJson(content);
+                        result.aiModel = 'gemini/' + model;
+                        return result;
+                    } catch (err) {
+                        console.warn('AI Vision: Gemini', model, 'exception:', err.message);
+                        continue;
                     }
-                    var data = await response.json();
-                    // Extract text from Gemini response
-                    var content = '';
-                    if (data.candidates && data.candidates[0] && data.candidates[0].content &&
-                        data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
-                        content = data.candidates[0].content.parts[0].text || '';
-                    }
-                    if (!content) throw new Error('Empty Gemini response');
-                    console.log('AI Vision raw response:', content);
-                    // Parse JSON from response (remove markdown if present)
-                    var jsonStr = content;
-                    var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-                    if (jsonMatch) jsonStr = jsonMatch[1].trim();
-                    var jsonStart = jsonStr.indexOf('{');
-                    var jsonEnd = jsonStr.lastIndexOf('}');
-                    if (jsonStart >= 0 && jsonEnd > jsonStart) jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
-                    var parsed = JSON.parse(jsonStr);
-                    var result = {
-                        fullName: [parsed.surname, parsed.name, parsed.patronymic].filter(Boolean).join(' '),
-                        dob: parsed.dob || '',
-                        passport: [parsed.passport_series, parsed.passport_number].filter(Boolean).join(' '),
-                        nationality: parsed.nationality || '',
-                        gender: parsed.gender || ''
-                    };
-                    // Normalize nationality
-                    if (result.nationality) {
-                        var nat = result.nationality.toUpperCase();
-                        if (nat.indexOf('КЫРГЫЗ') >= 0 || nat.indexOf('KGZ') >= 0 || nat === 'KG' || nat === 'KYRGYZ') result.nationality = 'КР';
-                        if (nat.indexOf('РОССИ') >= 0 || nat.indexOf('RUS') >= 0 || nat === 'RU' || nat === 'RUSSIAN') result.nationality = 'РФ';
-                        if (nat.indexOf('КАЗАХ') >= 0 || nat === 'KAZ' || nat === 'KAZAKH') result.nationality = 'KZ';
-                        if (nat.indexOf('УЗБЕК') >= 0 || nat === 'UZB' || nat === 'UZBEK') result.nationality = 'UZ';
-                        if (nat.indexOf('ТАДЖИК') >= 0 || nat === 'TJK' || nat === 'TAJIK') result.nationality = 'TJ';
-                    }
-                    return result;
-                } catch (err) { console.warn('AI Vision (Gemini) failed:', err.message); return null; }
+                }
+                return null;
+            },
+
+            // ── Main AI Vision entry point ──
+            scanWithAiVision: async function (dataUrl) {
+                var aiConfig = window.__kppOcrConfig || {};
+
+                // Extract base64 data once for all providers
+                var mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
+                var mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+                var base64Data = dataUrl.replace(/^data:[^;]+;base64,/, '');
+
+                // 1) Try OpenRouter first (works from KG, no VPN)
+                var result = await this.scanWithOpenRouter(dataUrl, base64Data, mimeType);
+                if (result) return result;
+
+                // 2) Try Gemini as backup (needs proxy for KG)
+                result = await this.scanWithGemini(dataUrl, base64Data, mimeType);
+                if (result) return result;
+
+                // 3) All AI failed — Tesseract will be used by caller
+                console.warn('AI Vision: all providers failed, falling back to Tesseract');
+                return null;
             },
 
             // ═══ MAIN SCAN FUNCTION ═══

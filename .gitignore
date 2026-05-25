@@ -19,3 +19,4 @@ Thumbs.db
 *.pfx
 appsettings.*.json
 !appsettings.json
+wwwroot/secrets.json
