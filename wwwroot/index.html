@@ -87,6 +87,10 @@
             // Check if browser supports DecompressionStream for gzip
             var canDecompress = typeof DecompressionStream !== 'undefined';
 
+            // Detect if running on GitHub Pages (has .gz files) or locally (no .gz)
+            var isGitHubPages = window.location.hostname !== 'localhost' &&
+                                window.location.hostname !== '127.0.0.1';
+
             // Simulated progress while Blazor loads
             var fakeProgress = 0;
             var progressInterval = setInterval(function () {
@@ -106,7 +110,12 @@
                         return defaultUri;
                     }
 
-                    // For other resources, try gzip-compressed version if browser supports it
+                    // Locally: no .gz files, just use default URI
+                    if (!isGitHubPages) {
+                        return defaultUri;
+                    }
+
+                    // GitHub Pages: try gzip-compressed version if browser supports it
                     if (canDecompress) {
                         var gzUri = defaultUri + '.gz';
                         return fetch(gzUri)
