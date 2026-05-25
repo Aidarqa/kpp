@@ -63,9 +63,9 @@
 
 | Логин | Пароль | Роль |
 |---|---|---|
-| `admin` | `admin123` | Администратор |
-| `kpp` | `kpp123` | Сотрудник КПП |
-| `it_user` | `it123` | Пользователь |
+| `admin` | `••••••` | Администратор |
+| `kpp` | `••••••` | Сотрудник КПП |
+| `it_user` | `••••••` | Пользователь |
 
 > Данные хранятся в памяти браузера (localStorage). При перезагрузке страницы seed-данные восстанавливаются.
 
@@ -101,7 +101,6 @@ KppBlazor/
 │   ├── DataStore.cs             # In-memory хранилище данных
 │   ├── ThemeService.cs          # Переключение темы
 │   ├── LocalizationService.cs   # Мультиязычность (RU/KG/EN)
-│   └── GuestService.cs          # Логика гостей
 ├── Models/
 │   └── Models.cs                # GuestItem, RoleItem, UserItem, AuthInfo...
 ├── Shared/
