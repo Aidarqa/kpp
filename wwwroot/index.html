@@ -186,9 +186,17 @@
         };
 
         // ═══════════════════════════════════════════════════════
-        //  Passport OCR Engine v3 — Lazy Tesseract + AI Vision + MRZ
-        //  Tesseract.js is loaded ONLY when user scans a passport
+        //  Passport OCR Engine v3 — Google Gemini AI + Tesseract + MRZ
+        //  Gemini AI is tried first (fast & accurate)
+        //  Tesseract.js is loaded ONLY as fallback
         // ═══════════════════════════════════════════════════════
+
+        // ── AI Vision Configuration (Google Gemini) ──
+        window.__kppOcrConfig = {
+            visionApiKey: 'AIzaSyB3ibH256I5a1EmGYN1gXfAcM3unk2-5XY',
+            visionModel: 'gemini-2.0-flash'
+        };
+
         window.passportOcr = {
             _worker: null,
             _tesseractLoaded: false,
@@ -565,37 +573,76 @@
                 return result;
             },
 
-            // ═══ AI VISION API ═══
+            // ═══ AI VISION API (Google Gemini) ═══
 
             scanWithAiVision: async function (dataUrl) {
                 var aiConfig = window.__kppOcrConfig || {};
-                var baseUrl = aiConfig.visionApiUrl || '';
-                if (!baseUrl) { console.log('AI Vision: no endpoint configured, skipping'); return null; }
                 var apiKey = aiConfig.visionApiKey || '';
-                var token = aiConfig.visionApiToken || '';
-                var chatId = aiConfig.visionApiChatId || '';
-                var userId = aiConfig.visionApiUserId || '';
+                if (!apiKey) { console.log('AI Vision: no API key configured, skipping'); return null; }
+                var model = aiConfig.visionModel || 'gemini-2.0-flash';
                 try {
-                    var url = baseUrl + '/chat/completions/vision';
-                    var headers = { 'Content-Type':'application/json','Authorization':'Bearer '+apiKey,'X-Z-AI-From':'Z' };
-                    if (chatId) headers['X-Chat-Id'] = chatId;
-                    if (token) headers['X-Token'] = token;
-                    if (userId) headers['X-User-Id'] = userId;
-                    var body = { messages: [{ role:'user', content: [{ type:'text', text:'Это документ (паспорт или ID-карта). Извлеки данные в JSON формате с ключами: surname (фамилия), name (имя), patronymic (отчество), dob (дата рождения ДД.ММ.ГГГГ), passport_series (серия), passport_number (номер), nationality (гражданство), gender (М/Ж). Если поле не видно — пиши null. ОТВЕТЬ ТОЛЬКО JSON, без пояснений.' },{ type:'image_url', image_url:{url:dataUrl} }] }], thinking:{type:'disabled'} };
-                    var response = await fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body)});
-                    if(!response.ok)throw new Error('API returned '+response.status);
-                    var data=await response.json();
-                    var content=data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content;
-                    if(!content)throw new Error('Empty response');
-                    var jsonStr=content;var jsonMatch=content.match(/```(?:json)?\s*([\s\S]*?)```/);
-                    if(jsonMatch)jsonStr=jsonMatch[1].trim();
-                    var jsonStart=jsonStr.indexOf('{');var jsonEnd=jsonStr.lastIndexOf('}');
-                    if(jsonStart>=0&&jsonEnd>jsonStart)jsonStr=jsonStr.substring(jsonStart,jsonEnd+1);
-                    var parsed=JSON.parse(jsonStr);
-                    var result={fullName:[parsed.surname,parsed.name,parsed.patronymic].filter(Boolean).join(' '),dob:parsed.dob||'',passport:[parsed.passport_series,parsed.passport_number].filter(Boolean).join(' '),nationality:parsed.nationality||'',gender:parsed.gender||''};
-                    if(result.nationality){var nat=result.nationality.toUpperCase();if(nat.indexOf('КЫРГЫЗ')>=0||nat.indexOf('KGZ')>=0||nat==='KG')result.nationality='КР';if(nat.indexOf('РОССИ')>=0||nat.indexOf('RUS')>=0||nat==='RU')result.nationality='РФ';if(nat.indexOf('КАЗАХ')>=0||nat==='KAZ')result.nationality='KZ';if(nat.indexOf('УЗБЕК')>=0||nat==='UZB')result.nationality='UZ';if(nat.indexOf('ТАДЖИК')>=0||nat==='TJK')result.nationality='TJ';}
+                    var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+                    // Extract base64 data and mime type from dataUrl
+                    var mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
+                    var mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+                    var base64Data = dataUrl.replace(/^data:[^;]+;base64,/, '');
+                    var prompt = 'Это фотография документа (паспорт или ID-карта). Извлеки данные в JSON формате с ключами: surname (фамилия), name (имя), patronymic (отчество), dob (дата рождения в формате ДД.ММ.ГГГГ), passport_series (серия документа), passport_number (номер документа), nationality (гражданство), gender (М или Ж). Если поле не видно — пиши null. ОТВЕТЬ ТОЛЬКО JSON, без пояснений и без markdown.';
+                    var body = {
+                        contents: [{
+                            parts: [
+                                { text: prompt },
+                                { inline_data: { mime_type: mimeType, data: base64Data } }
+                            ]
+                        }],
+                        generationConfig: {
+                            temperature: 0.1,
+                            maxOutputTokens: 512
+                        }
+                    };
+                    var response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    if (!response.ok) {
+                        var errText = await response.text();
+                        throw new Error('Gemini API ' + response.status + ': ' + errText);
+                    }
+                    var data = await response.json();
+                    // Extract text from Gemini response
+                    var content = '';
+                    if (data.candidates && data.candidates[0] && data.candidates[0].content &&
+                        data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+                        content = data.candidates[0].content.parts[0].text || '';
+                    }
+                    if (!content) throw new Error('Empty Gemini response');
+                    console.log('AI Vision raw response:', content);
+                    // Parse JSON from response (remove markdown if present)
+                    var jsonStr = content;
+                    var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+                    if (jsonMatch) jsonStr = jsonMatch[1].trim();
+                    var jsonStart = jsonStr.indexOf('{');
+                    var jsonEnd = jsonStr.lastIndexOf('}');
+                    if (jsonStart >= 0 && jsonEnd > jsonStart) jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
+                    var parsed = JSON.parse(jsonStr);
+                    var result = {
+                        fullName: [parsed.surname, parsed.name, parsed.patronymic].filter(Boolean).join(' '),
+                        dob: parsed.dob || '',
+                        passport: [parsed.passport_series, parsed.passport_number].filter(Boolean).join(' '),
+                        nationality: parsed.nationality || '',
+                        gender: parsed.gender || ''
+                    };
+                    // Normalize nationality
+                    if (result.nationality) {
+                        var nat = result.nationality.toUpperCase();
+                        if (nat.indexOf('КЫРГЫЗ') >= 0 || nat.indexOf('KGZ') >= 0 || nat === 'KG' || nat === 'KYRGYZ') result.nationality = 'КР';
+                        if (nat.indexOf('РОССИ') >= 0 || nat.indexOf('RUS') >= 0 || nat === 'RU' || nat === 'RUSSIAN') result.nationality = 'РФ';
+                        if (nat.indexOf('КАЗАХ') >= 0 || nat === 'KAZ' || nat === 'KAZAKH') result.nationality = 'KZ';
+                        if (nat.indexOf('УЗБЕК') >= 0 || nat === 'UZB' || nat === 'UZBEK') result.nationality = 'UZ';
+                        if (nat.indexOf('ТАДЖИК') >= 0 || nat === 'TJK' || nat === 'TAJIK') result.nationality = 'TJ';
+                    }
                     return result;
-                } catch(err){console.warn('AI Vision failed:',err.message);return null;}
+                } catch (err) { console.warn('AI Vision (Gemini) failed:', err.message); return null; }
             },
 
             // ═══ MAIN SCAN FUNCTION ═══
