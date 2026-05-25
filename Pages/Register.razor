@@ -402,27 +402,32 @@
                 return;
             }
 
-            // Auto-fill fields only if currently empty
+            // Auto-fill fields — always overwrite with new scan data
             int filled = 0;
-            if (root.TryGetProperty("fullName", out var fn) && string.IsNullOrWhiteSpace(fullName))
+            if (root.TryGetProperty("fullName", out var fn))
             {
                 var v = fn.GetString() ?? "";
                 if (!string.IsNullOrWhiteSpace(v)) { fullName = v; filled++; }
             }
-            if (root.TryGetProperty("dob", out var db) && string.IsNullOrWhiteSpace(dob))
+            if (root.TryGetProperty("dob", out var db))
             {
                 var v = db.GetString() ?? "";
                 if (!string.IsNullOrWhiteSpace(v)) { dob = v; filled++; }
             }
-            if (root.TryGetProperty("passport", out var pp) && string.IsNullOrWhiteSpace(passport))
+            if (root.TryGetProperty("passport", out var pp))
             {
                 var v = pp.GetString() ?? "";
                 if (!string.IsNullOrWhiteSpace(v)) { passport = v; filled++; }
             }
-            if (root.TryGetProperty("nationality", out var nat) && (string.IsNullOrWhiteSpace(nationality) || nationality == "РФ"))
+            if (root.TryGetProperty("nationality", out var nat))
             {
                 var v = nat.GetString() ?? "";
                 if (!string.IsNullOrWhiteSpace(v)) { nationality = v; filled++; }
+            }
+            if (root.TryGetProperty("gender", out var gen))
+            {
+                var v = gen.GetString() ?? "";
+                if (!string.IsNullOrWhiteSpace(v)) { gender = v; filled++; }
             }
 
             // Track which method was used
