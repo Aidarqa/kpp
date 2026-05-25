@@ -5,12 +5,13 @@
 @inject ThemeService Theme
 @inject LocalizationService Loc
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 @implements IDisposable
 
 <div id="sidebar">
 
     <!-- Бренд -->
-    <div class="sb-brand" @onclick='async () => await Navigate("dashboard")' title="@Loc["dashboard.title"]">
+    <div class="sb-brand" @onclick='async () => await Navigate("/dashboard")' title="@Loc["dashboard.title"]">
         <div class="sb-brand-inner">
             <div class="sb-logo">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -54,8 +55,8 @@
 
         @if (State.Auth?.CanViewHistory == true)
         {
-            <button class="nav-btn @(State.CurrentView == "dashboard" ? "active" : "")"
-                    @onclick='async () => await Navigate("dashboard")'>
+            <button class="nav-btn @(Nav.Uri.Contains("/dashboard") ? "active" : "")"
+                    @onclick='async () => await Navigate("/dashboard")'>
                 <span class="nav-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
@@ -63,8 +64,8 @@
                 </span>
                 <span style="flex:1">@Loc["dashboard.title"]</span>
             </button>
-            <button class="nav-btn @(State.CurrentView == "history" ? "active" : "")"
-                    @onclick='async () => await Navigate("history")'>
+            <button class="nav-btn @(Nav.Uri.Contains("/history") ? "active" : "")"
+                    @onclick='async () => await Navigate("/history")'>
                 <span class="nav-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
@@ -80,8 +81,8 @@
 
         @if (State.Auth?.CanCreateRequest == true)
         {
-            <button class="nav-btn @(State.CurrentView == "register" ? "active" : "")"
-                    @onclick='async () => await Navigate("register")'>
+            <button class="nav-btn @(Nav.Uri.Contains("/register") ? "active" : "")"
+                    @onclick='async () => await Navigate("/register")'>
                 <span class="nav-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -95,8 +96,8 @@
         @if (isAdmin)
         {
             <div class="nav-section-label" style="margin-top:4px">@Loc["nav.admin"]</div>
-            <button class="nav-btn @(State.CurrentView == "users" ? "active" : "")"
-                    @onclick='async () => await Navigate("users")'>
+            <button class="nav-btn @(Nav.Uri.Contains("/admin/users") ? "active" : "")"
+                    @onclick='async () => await Navigate("/admin/users")'>
                 <span class="nav-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -107,8 +108,8 @@
                 </span>
                 <span>@Loc["nav.users"]</span>
             </button>
-            <button class="nav-btn @(State.CurrentView == "roles" ? "active" : "")"
-                    @onclick='async () => await Navigate("roles")'>
+            <button class="nav-btn @(Nav.Uri.Contains("/admin/roles") ? "active" : "")"
+                    @onclick='async () => await Navigate("/admin/roles")'>
                 <span class="nav-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
@@ -126,22 +127,22 @@
             <div class="nav-section-label">@Loc["nav.stats"]</div>
         </div>
         <div class="sb-stats">
-            <button class="stat-card" @onclick='async () => await NavigateWithFilter("history", GuestStatus.Inside)'>
+            <button class="stat-card" @onclick='async () => await NavigateWithFilter("/history", GuestStatus.Inside)'>
                 <div class="stat-num" style="color:var(--accent-text)">@State.Stats.InsideCnt</div>
                 <div class="stat-lbl">@Loc["dashboard.inside"]</div>
             </button>
-            <button class="stat-card" @onclick='async () => await NavigateWithFilter("history", "today")'>
+            <button class="stat-card" @onclick='async () => await NavigateWithFilter("/history", "today")'>
                 <div class="stat-num" style="color:var(--good-text)">@State.Stats.TodayCnt</div>
                 <div class="stat-lbl">@Loc["dashboard.today"]</div>
             </button>
             @if (State.Stats.PendingCnt > 0)
             {
-                <button class="stat-card" @onclick='async () => await NavigateWithFilter("history", GuestStatus.Pending)'>
+                <button class="stat-card" @onclick='async () => await NavigateWithFilter("/history", GuestStatus.Pending)'>
                     <div class="stat-num" style="color:var(--warn-text)">@State.Stats.PendingCnt</div>
                     <div class="stat-lbl">@Loc["dashboard.pending"]</div>
                 </button>
             }
-            <button class="stat-card" style="grid-column:@(State.Stats.PendingCnt > 0 ? "auto" : "span 2")" @onclick='async () => await NavigateWithFilter("history", GuestStatus.All)'>
+            <button class="stat-card" style="grid-column:@(State.Stats.PendingCnt > 0 ? "auto" : "span 2")" @onclick='async () => await NavigateWithFilter("/history", GuestStatus.All)'>
                 <div class="stat-num" style="color:var(--text-muted)">@State.Stats.Total</div>
                 <div class="stat-lbl">@Loc["dashboard.total"]</div>
             </button>
@@ -192,16 +193,16 @@
         Loc.OnChange -= StateHasChanged;
     }
 
-    async Task Navigate(string view)
+    async Task Navigate(string url)
     {
-        State.Navigate(view);
+        Nav.NavigateTo(url);
         await OnClose.InvokeAsync();
     }
 
-    async Task NavigateWithFilter(string view, string filter)
+    async Task NavigateWithFilter(string url, string filter)
     {
-        State.Navigate(view);
         State.SetHistoryFilter(filter);
+        Nav.NavigateTo(url);
         await OnClose.InvokeAsync();
     }
 
@@ -209,5 +210,6 @@
     {
         try { await JS.InvokeVoidAsync("localStorage.removeItem", "kpp-auth"); } catch { }
         State.Logout();
+        Nav.NavigateTo("/login");
     }
 }

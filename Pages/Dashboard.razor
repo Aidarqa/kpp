@@ -1,4 +1,6 @@
 @namespace KppBlazor.Pages
+@page "/"
+@page "/dashboard"
 @using KppBlazor.Services
 @using KppBlazor.Models
 @inject ApiService Api
@@ -6,6 +8,7 @@
 @inject ThemeService Theme
 @inject LocalizationService Loc
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 @implements IDisposable
 
 <div class="page-fill">
@@ -272,8 +275,8 @@
 
     void GoToHistory(string filter)
     {
-        State.Navigate("history");
         State.SetHistoryFilter(filter);
+        Nav.NavigateTo("/history");
     }
 
     static string FmtTime(DateTime dt)

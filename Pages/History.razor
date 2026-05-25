@@ -1,10 +1,12 @@
 @using KppBlazor.Services
+@page "/history"
 @using KppBlazor.Models
 @inject ApiService Api
 @inject AppState State
 @inject ThemeService Theme
 @inject LocalizationService Loc
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 @implements IDisposable
 
 <div class="page-fill">
@@ -414,7 +416,11 @@
         new(GuestStatus.Exited,   Loc["history.exited"])
     };
 
-    string search = "", status = GuestStatus.All, dateFrom = "", dateTo = "";
+    [SupplyParameterFromQuery]
+    string search { get; set; } = "";
+    
+    string status = GuestStatus.All;
+    string dateFrom = "", dateTo = "";
     bool loading;
     bool _isLoading;  // re-entrancy guard
     string loadErr = "";
@@ -429,6 +435,13 @@
     {
         State.OnChange += OnStateChanged;
         await LoadData();
+        // Применяем фильтр, если передан через query-параметр или из AppState
+        if (State.HistoryFilterPending)
+        {
+            State.HistoryFilterPending = false;
+            ApplyFilter(State.HistoryFilter);
+            _ = LoadData();
+        }
         // Auto-refresh every 30 seconds
         _autoRefreshTimer = new Timer(async _ =>
         {
@@ -437,38 +450,39 @@
         }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
     }
 
+    void ApplyFilter(string filter)
+    {
+        if (filter == GuestStatus.All)
+        {
+            status = GuestStatus.All;
+            dateFrom = dateTo = "";
+        }
+        else if (filter == "today")
+        {
+            dateFrom = dateTo = DateTime.Today.ToString("yyyy-MM-dd");
+            status = GuestStatus.All;
+        }
+        else if (filter == "week")
+        {
+            dateFrom = DateTime.Today.AddDays(-6).ToString("yyyy-MM-dd");
+            dateTo = DateTime.Today.ToString("yyyy-MM-dd");
+            status = GuestStatus.All;
+        }
+        else
+        {
+            status = filter;
+            dateFrom = dateTo = "";
+        }
+    }
+
     void OnStateChanged()
     {
-        // Apply filter from sidebar/dashboard navigation
         if (State.HistoryFilterPending)
         {
             State.HistoryFilterPending = false;
-            if (State.HistoryFilter == GuestStatus.All)
-            {
-                // Clear all filters — show everything
-                status = GuestStatus.All;
-                dateFrom = dateTo = "";
-                search = "";
-            }
-            else if (State.HistoryFilter == "today")
-            {
-                dateFrom = dateTo = DateTime.Today.ToString("yyyy-MM-dd");
-                status = GuestStatus.All;
-            }
-            else if (State.HistoryFilter == "week")
-            {
-                dateFrom = DateTime.Today.AddDays(-6).ToString("yyyy-MM-dd");
-                dateTo = DateTime.Today.ToString("yyyy-MM-dd");
-                status = GuestStatus.All;
-            }
-            else
-            {
-                status = State.HistoryFilter;
-                dateFrom = dateTo = "";
-            }
+            ApplyFilter(State.HistoryFilter);
             _ = LoadData();
         }
-        // Only re-render if NOT currently loading (prevents infinite loop)
         if (!_isLoading) StateHasChanged();
     }
 

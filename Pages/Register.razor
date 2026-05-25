@@ -1,4 +1,4 @@
-
+@page "/register"
 @using KppBlazor.Services
 @using KppBlazor.Models
 @using Microsoft.AspNetCore.Components.Forms
@@ -7,6 +7,7 @@
 @inject AppState State
 @inject LocalizationService Loc
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 @implements IAsyncDisposable
 
 <div class="page-fill page-fill-center">
@@ -319,7 +320,7 @@
     void CloseSuccess()
     {
         showSuccess = false;
-        State.Navigate(State.Auth?.CanViewHistory == true ? "history" : "register");
+        Nav.NavigateTo(State.Auth?.CanViewHistory == true ? "/dashboard" : "/register");
     }
 
     void ResetForm()
