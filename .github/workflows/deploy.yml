@@ -44,6 +44,15 @@ jobs:
           done
       - name: Add .nojekyll
         run: touch release/wwwroot/.nojekyll
+      - name: Create secrets.json from GitHub Secrets
+        run: |
+          cat > release/wwwroot/secrets.json << EOF
+          {
+            "openRouterKey": "${{ secrets.OPENROUTER_KEY }}",
+            "visionApiKey": "${{ secrets.GEMINI_API_KEY }}",
+            "proxyUrl": "https://kpp-gemini-proxy.qaidarq1307.workers.dev"
+          }
+          EOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
