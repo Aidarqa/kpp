@@ -1,7 +1,86 @@
-# 🛂 КПП — Контроль гостей (Blazor WebAssembly)
+# 🛡️ КПП — Система контроля и учёта посетителей
 
-Blazor WebAssembly версия системы КПП, полностью воспроизводящая функционал
-оригинального JavaScript-проекта на C# + Razor-компонентах.
+Веб-приложение для контрольно-пропускного пункта (КПП). Регистрация гостей, управление въездом/выездом, OCR сканирование паспортов, ролевая модель доступа. Разработано для реального использования на КПП.
+
+**Демо:** [https://aidarqa.github.io/kpp/](https://aidarqa.github.io/kpp/)
+
+---
+
+## 🖥️ Скриншоты
+
+| Страница | Описание |
+|---|---|
+| 🔐 Вход | Авторизация по логину/паролю |
+| 📋 История | Таблица визитов с фильтрами, поиском, датами |
+| ✏️ Новая заявка | Форма регистрации гостя + OCR скан паспорта |
+| 👥 Пользователи | CRUD пользователей (admin) |
+| 🔑 Роли и права | Управление ролями и разрешениями (admin) |
+| 📊 Дашборд | Статистика, быстрые фильтры, лента событий |
+
+---
+
+## ✅ Реализованные функции
+
+### Основной функционал
+- 📝 Регистрация гостей (одиночных и групповых)
+- 🚪 Отметка въезда / выезда одним кликом
+- 🔍 Поиск и фильтрация по ФИО, паспорту, номеру авто, статусу, дате
+- 📊 Сводная статистика: внутри / сегодня / ожидаются / всего
+- ⏱️ Автоматический подсчёт длительности визита
+- 🔄 Автообновление данных каждые 30 секунд
+
+### OCR сканирование паспорта
+- 📸 Загрузка скана паспорта → автозаполнение полей формы
+- 🤖 Tesseract.js — распознавание текста (работает в браузере, без сервера)
+- 🇰🇬 Поддержка ID-карт Кыргызстана (кыргызский + русский + английский текст)
+- 🇷🇺 Поддержка российских паспортов
+- 🧠 AI Vision — готов к подключению (значительно точнее Tesseract)
+- ✂️ Умная обрезка регионов: зона данных + MRZ-зона + лёгкий контраст
+
+### Ролевая модель
+| Роль | Создание заявок | Просмотр истории | Управление въездом/выездом |
+|---|:---:|:---:|:---:|
+| **Администратор** | ✅ | ✅ | ✅ |
+| **Сотрудник КПП** | ✅ | ✅ | ✅ |
+| **Пользователь** | ✅ | ❌ | ❌ |
+
+- Создание произвольных ролей с настройкой прав
+- Блокировка/разблокировка пользователей
+- Смена пароля
+
+### UI/UX
+- 🌙 Тёмная тема «Cyber Shield» (кбербезопасность стиль)
+- ☀️ Светлая тема (переключатель)
+- 🌐 Мультиязычность: Русский / Кыргызча / English
+- 📱 Адаптивный дизайн (мобильные + десктоп)
+- 🎨 Выбор акцентного цвета
+- 🔔 Push-уведомления
+- 📋 Лента действий на дашборде
+
+---
+
+## 🔑 Тестовые аккаунты
+
+| Логин | Пароль | Роль |
+|---|---|---|
+| `admin` | `admin123` | Администратор |
+| `kpp` | `kpp123` | Сотрудник КПП |
+| `it_user` | `it123` | Пользователь |
+
+> Данные хранятся в памяти браузера (localStorage). При перезагрузке страницы seed-данные восстанавливаются.
+
+---
+
+## 🛠️ Технологии
+
+| Компонент | Технология |
+|---|---|
+| Фреймворк | Blazor WebAssembly (.NET 8) |
+| Язык | C# + Razor |
+| Стили | CSS (кастомный, без фреймворков) |
+| OCR | Tesseract.js 5 (ленивая загрузка) |
+| Хранение данных | localStorage (in-memory DataStore) |
+| Деплой | GitHub Pages + GitHub Actions |
 
 ---
 
@@ -9,133 +88,126 @@ Blazor WebAssembly версия системы КПП, полностью вос
 
 ```
 KppBlazor/
-├── Models/
-│   └── Models.cs              # GuestItem, RoleItem, UserItem, AuthInfo, ...
-├── Services/
-│   ├── ApiService.cs          # HTTP-клиент (аналог api.js)
-│   └── AppState.cs            # Глобальное состояние + события (аналог AUTH/VIEW)
 ├── Pages/
-│   ├── Login.razor            # Страница входа
-│   ├── History.razor          # История посещений + фильтры + модалка
-│   ├── Register.razor         # Регистрация / заявка гостя
-│   ├── Users.razor            # Управление пользователями (admin)
-│   └── Roles.razor            # Управление ролями (admin)
+│   ├── Login.razor              # Страница входа
+│   ├── Dashboard.razor          # Дашборд + статистика
+│   ├── History.razor            # История посещений + фильтры
+│   ├── Register.razor           # Регистрация гостя + OCR
+│   ├── Users.razor              # Управление пользователями
+│   └── Roles.razor              # Управление ролями
+├── Services/
+│   ├── ApiService.cs            # API-клиент (CRUL операции)
+│   ├── AppState.cs              # Глобальное состояние + события
+│   ├── DataStore.cs             # In-memory хранилище данных
+│   ├── ThemeService.cs          # Переключение темы
+│   ├── LocalizationService.cs   # Мультиязычность (RU/KG/EN)
+│   └── GuestService.cs          # Логика гостей
+├── Models/
+│   └── Models.cs                # GuestItem, RoleItem, UserItem, AuthInfo...
 ├── Shared/
-│   └── Sidebar.razor          # Боковая панель навигации + статистика
-├── App.razor                  # Корневой компонент-роутер
-├── Program.cs                 # DI + Blazor WASM bootstrap
-├── StringExtensions.cs        # Вспомогательный метод NullIfEmpty()
-├── KppBlazor.csproj           # .NET 8 Blazor WASM project file
-└── wwwroot/
-    ├── index.html             # Точка входа HTML
-    └── css/
-        └── site.css           # Полные стили (перенесено из site.css)
+│   ├── Sidebar.razor            # Боковая панель + навигация + статистика
+│   └── _Imports.razor           # Общие using-директивы
+├── Layout/
+│   └── MainLayout/
+│       └── MainLayout.razor     # Основной лейаут (сайдбар + контент)
+├── wwwroot/
+│   ├── index.html               # Точка входа + OCR движок + загрузка
+│   ├── css/site.css             # Полные стили Cyber Shield
+│   └── icons/                   # Иконки и логотипы
+├── App.razor                    # Корневой компонент
+├── Program.cs                   # DI + Blazor WASM bootstrap
+└── KppBlazor.csproj             # .NET 8 Blazor WASM
 ```
 
 ---
 
-## 🚀 Запуск
+## 🚀 Запуск локально
 
 ### Требования
-- .NET 8 SDK: https://dotnet.microsoft.com/download
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 
-### Команды
-
-```bash
-cd KppBlazor
-
-# Восстановить зависимости
-dotnet restore
-
-# Запустить dev-сервер (откроется браузер)
-dotnet run
-```
-
-По умолчанию откроется `https://localhost:5001` (или `http://localhost:5000`).
-
-Приложение будет проксировать API-запросы на бэкенд. Задайте адрес бэкенда
-в `Program.cs`:
-
-```csharp
-builder.Services.AddScoped(sp =>
-    new HttpClient { BaseAddress = new Uri("https://your-backend-api.com") });
-```
-
----
-
-## 🔄 Соответствие JS → Blazor
-
-| JS-файл        | Blazor-аналог              | Описание                              |
-|----------------|---------------------------|---------------------------------------|
-| `api.js`       | `Services/ApiService.cs`  | HTTP-клиент, AUTH, apiFetch           |
-| `app.js`       | `App.razor`               | Маршрутизация VIEW, render()          |
-| `utils.js`     | Встроено в компоненты     | fmtDT, todayStr, badge, DOM-хелперы   |
-| `sidebar.js`   | `Shared/Sidebar.razor`    | Сайдбар + статистика                  |
-| `login.js`     | `Pages/Login.razor`       | Форма авторизации                     |
-| `history.js`   | `Pages/History.razor`     | Таблица, фильтры, сводка, модалка     |
-| `register.js`  | `Pages/Register.razor`    | Форма регистрации гостей / заявки     |
-| `users.js`     | `Pages/Users.razor`       | CRUD пользователей                    |
-| `roles.js`     | `Pages/Roles.razor`       | CRUD ролей                            |
-| `site.css`     | `wwwroot/css/site.css`    | Полный перенос стилей                 |
-
----
-
-## ⚙️ Архитектурные решения
-
-### Управление состоянием
-Вместо глобальных JS-переменных (`AUTH`, `VIEW`, `ROLES_CACHE`) используется
-`AppState` — singleton-сервис с событием `OnChange`. Компоненты подписываются
-на это событие и вызывают `StateHasChanged()` для перерисовки.
-
-```csharp
-// AppState хранит:
-AuthInfo? Auth          // текущий пользователь (аналог AUTH)
-string CurrentView      // текущий раздел (аналог VIEW)
-List<RoleItem> RolesCache  // кэш ролей
-SidebarStats Stats      // счётчики для сайдбара
-```
-
-### API-клиент
-`ApiService` — scoped-сервис, использующий `HttpClient`. Методы:
-- `LoginAsync` — POST /api/auth/login, сохраняет токен в заголовки
-- `GetGuestsAsync` — GET /api/guests с параметрами фильтрации
-- `GuestEntryAsync` / `GuestExitAsync` — регистрация входа/выхода
-- `GetRolesAsync`, `CreateRoleAsync`, `UpdateRoleAsync`, `DeleteRoleAsync`
-- `GetUsersAsync`, `CreateUserAsync`, `UpdateUserAsync`, `DeleteUserAsync`
-
-### Автообновление истории
-В `History.razor` используется `System.Timers.Timer` (аналог `setInterval`)
-для обновления таблицы каждые 30 секунд. Таймер останавливается при
-уничтожении компонента (`IDisposable`).
-
-### Сканирование паспорта (ИИ)
-В `Register.razor` используется Blazor `InputFile` для загрузки изображения.
-Файл конвертируется в Base64 и отправляется на `/api/ai/scan-passport`.
-В текущей реализации показывается заглушка — подключите реальный эндпоинт.
-
----
-
-## 🎨 UI / Дизайн
-
-Стили полностью перенесены из оригинального `site.css` без изменений.
-Тёмная тема с акцентами `#1565c0` (синий), `#7ecfff` (голубой), `#ffcc02`
-(жёлтый). Адаптирован для Blazor: добавлены классы `.login-wrap`,
-`.login-box`, `.table-msg`, `.table-err`.
-
----
-
-## 🔌 Добавление бэкенда (ASP.NET Core)
-
-Для fullstack-решения на одном стеке:
+### Установка и запуск
 
 ```bash
-dotnet new blazorwasm --hosted -n KppApp
+# Клонировать
+git clone https://github.com/Aidarqa/kpp.git
+cd kpp
+
+# ⚠️ Обязательно: поменять base href для локального запуска
+# В файле wwwroot/index.html заменить:
+#   <base href="/kpp/" />
+# на:
+#   <base href="/" />
+
+# Запустить
+dotnet watch
 ```
 
-Это создаст:
-- `KppApp.Client` — Blazor WASM (текущий код)
-- `KppApp.Server` — ASP.NET Core с контроллерами `/api/...`
-- `KppApp.Shared` — общие модели
+Откроется **https://localhost:5001**
 
-Перенесите модели из `Models/Models.cs` в `Shared`, а бизнес-логику —
-в `Server/Controllers/`.
+### Одной строкой (Linux/Mac):
+```bash
+git clone https://github.com/Aidarqa/kpp.git && cd kpp && sed -i 's|href="/kpp/"|href="/"|g' wwwroot/index.html && dotnet watch
+```
+
+---
+
+## 🚢 Деплой на GitHub Pages
+
+Деплой автоматический через GitHub Actions (`.github/workflows/deploy.yml`):
+
+1. Пуш в `master` → запускается CI/CD
+2. `dotnet publish` в Release режиме (с trimming)
+3. Gzip-сжатие DLL и WASM файлов
+4. Деплой на GitHub Pages
+
+**Для своего репозитория** нужно:
+1. Settings → Pages → Source: **GitHub Actions**
+2. Убедиться что `base href` в `index.html` совпадает с именем репозитория:
+   - Репозиторий `username/kpp` → `<base href="/kpp/" />`
+   - Репозиторий `username/username.github.io` → `<base href="/" />`
+
+---
+
+## 🔌 Подключение AI Vision (опционально)
+
+Для точного распознавания паспортов можно подключить AI Vision API. Добавьте в `index.html` перед закрывающим `</script>`:
+
+```javascript
+window.__kppOcrConfig = {
+    visionApiUrl: 'https://ваш-api-endpoint',
+    visionApiKey: 'ваш-api-ключ'
+};
+```
+
+AI Vision сработает первым. Если API недоступен — автоматически fallback на Tesseract.js.
+
+---
+
+## 📋 Статусы гостей
+
+| Статус | Описание | Кто может изменить |
+|---|---|---|
+| 🟡 Ожидается | Заявка создана, гость ещё не прибыл | — |
+| 🟢 Внутри | Гость прошёл через КПП | КПП / Админ |
+| 🔴 Вышел | Гость покинул территорию | КПП / Админ |
+
+---
+
+## 🗺️ Дорожная карта
+
+- [ ] QR-код пропуска для гостей
+- [ ] Экспорт отчётов (Excel/PDF)
+- [ ] Чёрный список
+- [ ] Фото гостя с веб-камеры
+- [ ] PWA (работа оффлайн)
+- [ ] Цифровая подпись принимающего
+- [ ] Интеграция с СКУД Hikvision HikCentral
+- [ ] Настоящий бэкенд (PostgreSQL + REST API)
+- [ ] Telegram-бот для уведомлений
+
+---
+
+## 📄 Лицензия
+
+Проект разработан для внутреннего использования. Все права защищены.
