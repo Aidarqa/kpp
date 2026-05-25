@@ -406,7 +406,7 @@
 @code {
     record StatusFilter(string Val, string Lbl);
 
-    StatusFilter[] StatusFilters => new[]
+    StatusFilter[] StatusFilters => new StatusFilter[]
     {
         new(GuestStatus.All,      Loc["history.all"]),
         new(GuestStatus.Pending,  Loc["history.pending"]),

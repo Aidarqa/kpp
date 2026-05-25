@@ -263,7 +263,7 @@
             <div class="success-title">@(isKpp ? Loc["register.registered"] : Loc["register.created"])</div>
             <div class="success-sub">
                 @(successCount > 1
-                    ? $"{successCount} @Loc["register.guestsRegistered"]"
+                    ? $"{successCount} {Loc["register.guestsRegistered"]}"
                     : Loc[isKpp ? "register.guestRegistered" : "register.guestAdded"])
             </div>
             @if (State.Auth?.CanViewHistory == true)
