@@ -32,7 +32,26 @@
             await Theme.InitializeAsync();
             await Loc.InitializeAsync();
             await RestoreAuthAsync();
+            await HandleSpaRedirect();
         }
+    }
+
+    /// <summary>
+    /// Для GitHub Pages: 404.html сохраняет запрошенный путь в sessionStorage,
+    /// затем редиректит на корень. Здесь мы читаем путь и делаем NavigateTo.
+    /// </summary>
+    async Task HandleSpaRedirect()
+    {
+        try
+        {
+            var redirectPath = await JS.InvokeAsync<string?>("sessionStorage.getItem", "kpp-redirect");
+            if (!string.IsNullOrEmpty(redirectPath))
+            {
+                await JS.InvokeVoidAsync("sessionStorage.removeItem", "kpp-redirect");
+                Nav.NavigateTo(redirectPath, forceLoad: false);
+            }
+        }
+        catch { }
     }
 
     async Task RestoreAuthAsync()
