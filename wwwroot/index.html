@@ -155,6 +155,30 @@
         })();
     </script>
 
+    <!-- SPA redirect handler: after Blazor boots, navigate to the saved path -->
+    <script>
+        // This runs after Blazor has started. Check if 404.html saved a redirect path.
+        window.addEventListener('DOMContentLoaded', function () {
+            var saved = sessionStorage.getItem('kpp-redirect');
+            if (saved) {
+                sessionStorage.removeItem('kpp-redirect');
+                // Use Blazor's navigation after it finishes booting
+                var checkBlazor = setInterval(function () {
+                    if (window.Blazor && window.Blazor._internal && window.Blazor._internal.navigationManager) {
+                        clearInterval(checkBlazor);
+                        window.Blazor._internal.navigationManager.navigateTo(saved);
+                        // Also update browser URL without reload
+                        history.replaceState(null, '', saved);
+                    }
+                }, 50);
+                // Fallback: if Blazor doesn't boot in 10s, just update URL
+                setTimeout(function () {
+                    clearInterval(checkBlazor);
+                }, 10000);
+            }
+        });
+    </script>
+
     <!-- KPP OCR Engine & Helpers (extracted to separate file) -->
     <script src="js/kpp.js"></script>
 </body>

@@ -2,160 +2,28 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>КПП — Контроль гостей</title>
-    <base href="/kpp/" />
-    <link rel="icon" type="image/svg+xml" href="icons/kpp.svg" />
-    <link rel="stylesheet" href="css/site.css" />
-    <meta name="theme-color" content="#030712" />
-    <meta name="description" content="Система контроля и учёта посетителей на КПП" />
-    <style>
-        /* Loading screen styles — inline to avoid CSS dependency */
-        @keyframes loadGlow  { 0%,100%{box-shadow:0 0 20px rgba(6,182,212,0.15);} 50%{box-shadow:0 0 40px rgba(6,182,212,0.3);} }
-        #loading-screen {
-            display:flex;align-items:center;justify-content:center;min-height:100vh;
-            background:#030712;color:#94a3b8;font-family:Inter,Segoe UI,sans-serif;
-            position:fixed;inset:0;z-index:9999;transition:opacity .4s ease;
-        }
-        #loading-screen.fade-out { opacity:0; pointer-events:none; }
-        .load-wrap { text-align:center;max-width:320px;width:100%;padding:0 24px; }
-        .load-logo {
-            width:56px;height:56px;margin:0 auto 20px;
-            background:linear-gradient(135deg,#06b6d4,#8b5cf6);
-            border-radius:16px;display:flex;align-items:center;justify-content:center;
-            animation:loadGlow 3s ease-in-out infinite;
-        }
-        .load-logo svg { width:28px;height:28px;color:white; }
-        .load-title { font-size:16px;font-weight:700;color:#f1f5f9;margin-bottom:4px; }
-        .load-sub { font-size:12px;color:#64748b;margin-bottom:20px;font-weight:500; }
-        .load-bar-bg {
-            width:100%;height:4px;background:rgba(148,163,184,0.1);
-            border-radius:4px;overflow:hidden;margin-bottom:10px;
-        }
-        .load-bar-fill {
-            height:100%;width:0%;border-radius:4px;
-            background:linear-gradient(90deg,#06b6d4,#8b5cf6);
-            transition:width .3s ease;
-        }
-        .load-pct { font-size:11px;color:#64748b;font-weight:600;font-variant-numeric:tabular-nums; }
-    </style>
-</head>
-<body>
-    <!-- Loading screen (shown before Blazor boots) -->
-    <div id="loading-screen">
-        <div class="load-wrap">
-            <div class="load-logo">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
-            </div>
-            <div class="load-title">КПП Контроль гостей</div>
-            <div class="load-sub" id="load-status">Загрузка системы...</div>
-            <div class="load-bar-bg">
-                <div class="load-bar-fill" id="load-bar"></div>
-            </div>
-            <div class="load-pct" id="load-pct">0%</div>
-        </div>
-    </div>
-
-    <div id="app"></div>
-    <div id="blazor-error-ui">
-        Произошла непредвиденная ошибка.
-        <a href="" class="reload">Перезагрузить</a>
-        <a class="dismiss">✕</a>
-    </div>
-
-    <!-- Blazor WASM — autostart=false for loading screen -->
-    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
-
+    <title>КПП — Перенаправление...</title>
     <script>
-        // ═══════════════════════════════════════════════════════
-        //  BLAZOR BOOT — with Gzip decompression for GitHub Pages
-        // ═══════════════════════════════════════════════════════
+        // SPA fallback for GitHub Pages:
+        // GitHub Pages serves this file for any unknown URL (e.g. /kpp/login).
+        // We save the requested path and redirect to the root where index.html loads Blazor.
+        // After Blazor boots, it reads the saved path from sessionStorage and navigates to it.
         (function () {
-            var bar = document.getElementById('load-bar');
-            var pctEl = document.getElementById('load-pct');
-            var statusEl = document.getElementById('load-status');
-            var screen = document.getElementById('loading-screen');
-
-            function setProgress(percent, text) {
-                if (bar) bar.style.width = percent + '%';
-                if (pctEl) pctEl.textContent = Math.round(percent) + '%';
-                if (text && statusEl) statusEl.textContent = text;
+            var base = document.querySelector('base');
+            var baseHref = base ? base.getAttribute('href') : '/';
+            // Get the path relative to base href
+            var fullPath = window.location.pathname + window.location.search + window.location.hash;
+            // Strip the base path prefix
+            var relativePath = fullPath;
+            if (baseHref !== '/' && fullPath.indexOf(baseHref) === 0) {
+                relativePath = fullPath.substring(baseHref.length - 1); // keep leading /
             }
-
-            // Check if browser supports DecompressionStream for gzip
-            var canDecompress = typeof DecompressionStream !== 'undefined';
-
-            // Detect if running on GitHub Pages (has .gz files) or locally (no .gz)
-            var isGitHubPages = window.location.hostname !== 'localhost' &&
-                                window.location.hostname !== '127.0.0.1';
-
-            // Simulated progress while Blazor loads
-            var fakeProgress = 0;
-            var progressInterval = setInterval(function () {
-                if (fakeProgress < 85) {
-                    fakeProgress += (85 - fakeProgress) * 0.035;
-                    setProgress(fakeProgress, 'Загрузка системы...');
-                } else {
-                    clearInterval(progressInterval);
-                }
-            }, 300);
-
-            Blazor.start({
-                loadBootResource: function (type, name, defaultUri, integrity) {
-                    // CRITICAL: dotnetjs and manifest MUST return a URI string
-                    // Returning anything else causes: "custom loaders must supply a URI string"
-                    if (type === 'dotnetjs' || type === 'manifest') {
-                        return defaultUri;
-                    }
-
-                    // Locally: no .gz files, just use default URI
-                    if (!isGitHubPages) {
-                        return defaultUri;
-                    }
-
-                    // GitHub Pages: try gzip-compressed version if browser supports it
-                    if (canDecompress) {
-                        var gzUri = defaultUri + '.gz';
-                        return fetch(gzUri)
-                            .then(function (resp) {
-                                if (!resp.ok) return null;
-                                // Decompress the gzip response
-                                var ds = new DecompressionStream('gzip');
-                                var decompressed = resp.body.pipeThrough(ds);
-                                return new Response(decompressed);
-                            })
-                            .catch(function () {
-                                return null;
-                            })
-                            .then(function (result) {
-                                // If decompression worked, return Response; otherwise use default URI
-                                return result || defaultUri;
-                            });
-                    }
-
-                    // No DecompressionStream — return default URI (uncompressed)
-                    return defaultUri;
-                }
-            }).then(function () {
-                clearInterval(progressInterval);
-                setProgress(100, 'Готово!');
-                setTimeout(function () {
-                    if (screen) {
-                        screen.classList.add('fade-out');
-                        setTimeout(function () { screen.remove(); }, 500);
-                    }
-                }, 300);
-            }).catch(function (err) {
-                clearInterval(progressInterval);
-                console.error('Blazor boot failed:', err);
-                setProgress(0, 'Ошибка загрузки. Обновите страницу.');
-            });
+            if (relativePath && relativePath !== '/') {
+                sessionStorage.setItem('kpp-redirect', relativePath);
+            }
+            window.location.replace(baseHref);
         })();
     </script>
-
-    <!-- KPP OCR Engine & Helpers (extracted to separate file) -->
-    <script src="js/kpp.js"></script>
-</body>
+</head>
+<body></body>
 </html>
