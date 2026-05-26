@@ -11,14 +11,16 @@
         // index.html loads Blazor, then App.razor reads the path and does NavigateTo.
         (function () {
             var fullPath = window.location.pathname + window.location.search + window.location.hash;
-            // Strip the base prefix "/kpp/" to get the relative path (e.g. "/login")
+            // Strip the base prefix "/kpp/" to get the relative path (e.g. "login")
             var base = '/kpp/';
-            var relativePath = fullPath;
+            var relativePath = '';
             if (fullPath.indexOf(base) === 0) {
-                relativePath = '/' + fullPath.substring(base.length);
+                relativePath = fullPath.substring(base.length);
+                // Remove leading slash — Blazor NavigateTo resolves relative to base href
+                if (relativePath.charAt(0) === '/') relativePath = relativePath.substring(1);
             }
             // Save and redirect to root
-            if (relativePath && relativePath !== '/') {
+            if (relativePath && relativePath !== '') {
                 sessionStorage.setItem('kpp-redirect', relativePath);
             }
             window.location.replace(base);

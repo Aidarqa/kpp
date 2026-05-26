@@ -110,7 +110,7 @@
                 State.SetAuth(auth);
                 if (auth.RoleName == RoleNames.Admin)
                     State.RolesCache = await Api.GetRolesAsync();
-                Nav.NavigateTo(auth.CanViewHistory ? "/dashboard" : "/register");
+                Nav.NavigateTo(auth.CanViewHistory ? "dashboard" : "register");
             }
             else { errorMsg = Loc["login.wrongCredentials"]; }
         }

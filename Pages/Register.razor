@@ -320,7 +320,7 @@
     void CloseSuccess()
     {
         showSuccess = false;
-        Nav.NavigateTo(State.Auth?.CanViewHistory == true ? "/dashboard" : "/register");
+        Nav.NavigateTo(State.Auth?.CanViewHistory == true ? "dashboard" : "register");
     }
 
     void ResetForm()

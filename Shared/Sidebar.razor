@@ -195,14 +195,14 @@
 
     async Task Navigate(string url)
     {
-        Nav.NavigateTo(url);
+        Nav.NavigateTo(url.TrimStart('/'));
         await OnClose.InvokeAsync();
     }
 
     async Task NavigateWithFilter(string url, string filter)
     {
         State.SetHistoryFilter(filter);
-        Nav.NavigateTo(url);
+        Nav.NavigateTo(url.TrimStart('/'));
         await OnClose.InvokeAsync();
     }
 
@@ -210,6 +210,6 @@
     {
         try { await JS.InvokeVoidAsync("localStorage.removeItem", "kpp-auth"); } catch { }
         State.Logout();
-        Nav.NavigateTo("/login");
+        Nav.NavigateTo("login");
     }
 }

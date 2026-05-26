@@ -10,6 +10,7 @@
 @inject ApiService Api
 @inject IJSRuntime JS
 @inject NavigationManager Nav
+@implements IDisposable
 
 @if (isLoginPage || State.Auth != null)
 {
@@ -42,6 +43,7 @@ else
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
+        State.OnChange += StateHasChanged;
         UpdateCurrentPath();
     }
 
@@ -101,9 +103,21 @@ else
                     State.SetAuth(auth);
                     if (auth.RoleName == RoleNames.Admin)
                         State.RolesCache = await Api.GetRolesAsync();
+                    // Если авторизация восстановлена и мы на корне — перейти на дашборд
+                    var relPath = Nav.ToBaseRelativePath(Nav.Uri);
+                    if (string.IsNullOrEmpty(relPath) || relPath == "")
+                    {
+                        Nav.NavigateTo(auth.CanViewHistory ? "dashboard" : "register");
+                    }
                 }
             }
         }
         catch { }
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        State.OnChange -= StateHasChanged;
     }
 }
