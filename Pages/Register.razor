@@ -317,6 +317,17 @@
                      : Loc["register.banner.user"];
     string submitLabel => isAdmin ? Loc["register.create"] : isKpp ? Loc["register.submitKpp"] : Loc["register.submitUser"];
 
+    protected override void OnInitialized()
+    {
+        Loc.OnChange += StateHasChanged;
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        Loc.OnChange -= StateHasChanged;
+        ocrRef?.Dispose();
+    }
+
     void CloseSuccess()
     {
         showSuccess = false;

@@ -5,6 +5,7 @@
 @inject ApiService Api
 @inject AppState State
 @inject LocalizationService Loc
+@implements IDisposable
 
 <div class="page-fill">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
@@ -187,7 +188,11 @@
     string cf_username = "", cf_password = "", cf_displayName = "";
     int cf_roleId = 0;
 
-    protected override async Task OnInitializedAsync() => await LoadUsers();
+    protected override async Task OnInitializedAsync()
+    {
+        Loc.OnChange += StateHasChanged;
+        await LoadUsers();
+    }
 
     async Task LoadUsers()
     {
@@ -262,4 +267,9 @@
     }
 
     string IsoDate(string? iso) => iso?.Length >= 10 ? iso[..10] : "";
+
+    public void Dispose()
+    {
+        Loc.OnChange -= StateHasChanged;
+    }
 }

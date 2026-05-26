@@ -10,6 +10,7 @@
 @inject LocalizationService Loc
 @inject IJSRuntime JS
 @inject NavigationManager Nav
+@implements IDisposable
 
 <div class="login-wrap">
     <div class="login-box">
@@ -93,6 +94,16 @@
 
     string username = "", password = "", errorMsg = "";
     bool loading = false;
+
+    protected override void OnInitialized()
+    {
+        Loc.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        Loc.OnChange -= StateHasChanged;
+    }
 
     async Task DoLogin()
     {

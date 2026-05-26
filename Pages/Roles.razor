@@ -5,6 +5,7 @@
 @inject ApiService Api
 @inject AppState State
 @inject LocalizationService Loc
+@implements IDisposable
 
 <div class="page-fill">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
@@ -243,7 +244,11 @@
         _                  => false
     };
 
-    protected override async Task OnInitializedAsync() => await LoadRoles();
+    protected override async Task OnInitializedAsync()
+    {
+        Loc.OnChange += StateHasChanged;
+        await LoadRoles();
+    }
 
     async Task LoadRoles()
     {
@@ -321,5 +326,10 @@
     {
         flashMsg = msg;
         _ = Task.Delay(3000).ContinueWith(_ => { flashMsg = ""; InvokeAsync(StateHasChanged); });
+    }
+
+    public void Dispose()
+    {
+        Loc.OnChange -= StateHasChanged;
     }
 }

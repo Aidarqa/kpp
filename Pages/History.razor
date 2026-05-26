@@ -434,6 +434,7 @@
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += OnStateChanged;
+        Loc.OnChange += StateHasChanged;
         await LoadData();
         // Применяем фильтр, если передан через query-параметр или из AppState
         if (State.HistoryFilterPending)
@@ -489,6 +490,7 @@
     public void Dispose()
     {
         State.OnChange -= OnStateChanged;
+        Loc.OnChange -= StateHasChanged;
         _autoRefreshTimer?.Dispose();
     }
 

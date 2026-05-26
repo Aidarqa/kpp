@@ -225,6 +225,7 @@
     {
         State.OnChange += StateHasChanged;
         Theme.OnChange += StateHasChanged;
+        Loc.OnChange += StateHasChanged;
         await LoadData();
         // Request notification permission
         try { await JS.InvokeVoidAsync("requestNotificationPermission"); } catch { }
@@ -234,6 +235,7 @@
     {
         State.OnChange -= StateHasChanged;
         Theme.OnChange -= StateHasChanged;
+        Loc.OnChange -= StateHasChanged;
     }
 
     async Task LoadData()
