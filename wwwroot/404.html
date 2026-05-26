@@ -2,26 +2,26 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8" />
+    <base href="/kpp/" />
     <title>КПП — Перенаправление...</title>
     <script>
         // SPA fallback for GitHub Pages:
-        // GitHub Pages serves this file for any unknown URL (e.g. /kpp/login).
-        // We save the requested path and redirect to the root where index.html loads Blazor.
-        // After Blazor boots, it reads the saved path from sessionStorage and navigates to it.
+        // GitHub Pages serves this file for any unknown URL under /kpp/ (e.g. /kpp/login).
+        // Save the requested path into sessionStorage and redirect to the root (/kpp/).
+        // index.html loads Blazor, then App.razor reads the path and does NavigateTo.
         (function () {
-            var base = document.querySelector('base');
-            var baseHref = base ? base.getAttribute('href') : '/';
-            // Get the path relative to base href
             var fullPath = window.location.pathname + window.location.search + window.location.hash;
-            // Strip the base path prefix
+            // Strip the base prefix "/kpp/" to get the relative path (e.g. "/login")
+            var base = '/kpp/';
             var relativePath = fullPath;
-            if (baseHref !== '/' && fullPath.indexOf(baseHref) === 0) {
-                relativePath = fullPath.substring(baseHref.length - 1); // keep leading /
+            if (fullPath.indexOf(base) === 0) {
+                relativePath = '/' + fullPath.substring(base.length);
             }
+            // Save and redirect to root
             if (relativePath && relativePath !== '/') {
                 sessionStorage.setItem('kpp-redirect', relativePath);
             }
-            window.location.replace(baseHref);
+            window.location.replace(base);
         })();
     </script>
 </head>

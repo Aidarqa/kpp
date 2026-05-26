@@ -1,7 +1,9 @@
 @using KppBlazor.Layout.MainLayout
+@using KppBlazor.Shared
 @using KppBlazor.Services
 @using KppBlazor.Models
 @using System.Text.Json
+@using KppBlazor.Pages
 @inject ThemeService Theme
 @inject LocalizationService Loc
 @inject AppState State
@@ -9,22 +11,40 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 
-<Router AppAssembly="typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(KppBlazor.Layout.MainLayout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <PageTitle>404</PageTitle>
-        <LayoutView Layout="typeof(KppBlazor.Layout.MainLayout.MainLayout)">
-            <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text-muted);font-size:18px">
-                404 — Страница не найдена
-            </div>
-        </LayoutView>
-    </NotFound>
-</Router>
+@if (isLoginPage || State.Auth != null)
+{
+    <Router AppAssembly="typeof(App).Assembly">
+        <Found Context="routeData">
+            <RouteView RouteData="routeData" DefaultLayout="typeof(KppBlazor.Layout.MainLayout.MainLayout)" />
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>404</PageTitle>
+            <LayoutView Layout="typeof(KppBlazor.Layout.MainLayout.MainLayout)">
+                <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text-muted);font-size:18px">
+                    404 — Страница не найдена
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+}
+else
+{
+    @* Не авторизован — показываем Login без сайдбара *@
+    <LayoutView Layout="typeof(KppBlazor.Shared.NoLayout)">
+        <Login />
+    </LayoutView>
+}
 
 @code {
+    bool isLoginPage = false;
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        UpdateCurrentPath();
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -32,8 +52,21 @@
             await Theme.InitializeAsync();
             await Loc.InitializeAsync();
             await RestoreAuthAsync();
+            // После восстановления авторизации — проверяем SPA-редирект
             await HandleSpaRedirect();
         }
+    }
+
+    void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        UpdateCurrentPath();
+        StateHasChanged();
+    }
+
+    void UpdateCurrentPath()
+    {
+        var relativePath = Nav.ToBaseRelativePath(Nav.Uri);
+        isLoginPage = relativePath == "login";
     }
 
     /// <summary>
