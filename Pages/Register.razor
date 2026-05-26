@@ -477,11 +477,6 @@
         // We use this for real-time progress but main status is set in RunOcrAsync
     }
 
-    async ValueTask IAsyncDisposable.DisposeAsync()
-    {
-        ocrRef?.Dispose();
-    }
-
     async Task OnPermitDoc(InputFileChangeEventArgs e)
     {
         try
